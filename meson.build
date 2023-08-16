@@ -8,5 +8,8 @@ project('matar', 'cpp',
 
 includes = include_directories('include')
 
+subdir('include')
 subdir('src')
 subdir('apps')
+
+import('pkgconfig').generate(lib)

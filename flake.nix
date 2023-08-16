@@ -25,6 +25,7 @@
         packages = rec {
           matar = stdenv.mkDerivation rec {
             name = "matar";
+            version = "0.1";
             src = pkgs.lib.sourceFilesBySuffices ./. [
               ".hh"
               ".cc"
@@ -43,7 +44,6 @@
           matar = pkgs.mkShell.override { inherit stdenv; } {
             name = "matar";
             packages = nativeBuildInputs ++ (with pkgs; [
-              bear
               clang-tools
             ]);
           };
