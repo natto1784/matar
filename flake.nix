@@ -16,12 +16,12 @@
     eachSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        llvm = pkgs.llvmPackages;
+        llvm = pkgs.llvmPackages_16;
         stdenv = llvm.libcxxStdenv;
 
         nativeBuildInputs = with pkgs; [ meson ninja ];
       in
-      {
+      rec {
         packages = rec {
           matar = stdenv.mkDerivation rec {
             name = "matar";
@@ -44,7 +44,13 @@
           matar = pkgs.mkShell.override { inherit stdenv; } {
             name = "matar";
             packages = nativeBuildInputs ++ (with pkgs; [
-              clang-tools
+              # dev tools
+              clang-tools_16
+
+              # other tools
+              valgrind
+
+              llvm.lldb
             ]);
           };
           default = matar;

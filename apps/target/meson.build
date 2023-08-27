@@ -10,6 +10,6 @@ executable(
   meson.project_name(),
   target_sources,
   link_with: target_deps,
-  include_directories: includes,
-  install : true
+  include_directories: inc,
+  install : true,
 )

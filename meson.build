@@ -6,10 +6,7 @@ project('matar', 'cpp',
                      'optimization=3',
                      'cpp_std=c++20'])
 
-includes = include_directories('include')
-
+inc = include_directories('include')
 subdir('include')
 subdir('src')
 subdir('apps')
-
-import('pkgconfig').generate(lib)

@@ -1,5 +1,5 @@
 lib_sources = files(
-  'matar.cc'
+  'emulator.cc'
 )
 
 subdir('cpu')
@@ -7,6 +7,8 @@ subdir('cpu')
 lib = library(
   meson.project_name(),
   lib_sources,
-  include_directories: includes,
-  install : true
+  include_directories: inc,
+  install: true
 )
+
+import('pkgconfig').generate(lib)

@@ -1,2 +1,7 @@
-BasedOnStyle: LLVM
+BasedOnStyle: Mozilla
 IndentWidth: 4
+BreakBeforeBraces: Attach
+AlwaysBreakTemplateDeclarations: Yes
+AlignConsecutiveAssignments: Consecutive
+BreakAfterAttributes: Always
+AllowShortEnumsOnASingleLine: False
