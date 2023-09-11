@@ -3,6 +3,19 @@
 #include <algorithm>
 #include <cstdio>
 
+Cpu::Cpu(Bus bus)
+  : gpr(0)
+  , cpsr(0)
+  , spsr(0)
+  , bus(bus)
+  , gpr_banked({ { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 } })
+  , spsr_banked({ 0, 0, 0, 0, 0 }) {
+    cpsr.set_mode(Mode::System);
+    cpsr.set_irq_disabled(true);
+    cpsr.set_fiq_disabled(true);
+    cpsr.set_state(State::Arm);
+}
+
 /* change modes */
 void
 Cpu::chg_mode(Mode from, Mode to) {
@@ -92,13 +105,13 @@ Cpu::chg_mode(Mode from, Mode to) {
 
 //  set register
 inline uint32_t&
-Cpu::operator[](size_t idx) {
+Cpu::operator[](uint8_t idx) {
     // avoid unneeded complexity like index checks
     return gpr[idx];
 }
 
 // get register
 inline const uint32_t&
-Cpu::operator[](size_t idx) const {
+Cpu::operator[](uint8_t idx) const {
     return gpr[idx];
 }

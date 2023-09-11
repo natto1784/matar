@@ -1,13 +1,14 @@
 lib_sources = files(
-  'emulator.cc'
+  'memory.cc',
+  'bus.cc'
 )
 
+subdir('util')
 subdir('cpu')
 
 lib = library(
   meson.project_name(),
   lib_sources,
-  include_directories: inc,
   install: true
 )
 

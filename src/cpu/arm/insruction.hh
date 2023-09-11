@@ -1,21 +1,3 @@
-enum class ArmInstructionFormat {
-    DataProcessingAndFsrTransfer,
-    Multiply,
-    MultiplyLong,
-    SingleDataSwap,
-    BranchAndExchange,
-    HalfwordDataTransferRegisterOffset,
-    HalfwordDataTransferImmediateOffset,
-    SingleDataTransfer,
-    Undefined,
-    BlockDataTransfer,
-    Branch,
-    CoprocessorDataTransfer,
-    CoprocessorDataOperation,
-    CoprocessorRegisterTransfer,
-    SoftwareInterrupt
-};
-
 enum class Condition {
     EQ = 0b0000,
     NE = 0b0001,
@@ -53,7 +35,7 @@ enum class OpCode {
     MVN = 0b1111
 };
 
-enum class Shift {
+enum class ShiftType {
     LSL = 0b00,
     LSR = 0b01,
     ASR = 0b10,

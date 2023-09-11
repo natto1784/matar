@@ -1,5 +1,6 @@
 lib_sources += files(
-  'cpu.cc'
+  'cpu.cc',
+  'psr.cc'
 )
 
 subdir('arm')
