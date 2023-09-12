@@ -9,7 +9,8 @@ using std::size_t;
 
 class Cpu {
   public:
-    Cpu(Bus bus);
+    Cpu(std::shared_ptr<Bus> bus);
+    void step();
 
   private:
     static constexpr size_t GPR_FIQ_BANKED_FIRST = 8;
@@ -35,7 +36,7 @@ class Cpu {
     uint32_t gpr[GPR_VISIBLE_COUNT]; // general purpose registers
     Psr cpsr;                        // current program status register
     Psr spsr;                        // status program status register
-    Bus bus;
+    std::shared_ptr<Bus> bus;
 
     struct {
         uint32_t fiq[GPR_FIQ_BANKED_COUNT];
@@ -57,7 +58,5 @@ class Cpu {
     } spsr_banked; // banked saved program status registers
 
     void chg_mode(Mode from, Mode to);
-
-    uint32_t& operator[](uint8_t idx);
-    const uint32_t& operator[](uint8_t idx) const;
+    std::string exec_arm(uint32_t insn);
 };

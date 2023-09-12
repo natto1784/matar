@@ -1,9 +1,12 @@
 #include "cpu.hh"
-#include "cpu/utility.hh"
+#include "util/log.hh"
+#include "utility.hh"
 #include <algorithm>
 #include <cstdio>
 
-Cpu::Cpu(Bus bus)
+using namespace logger;
+
+Cpu::Cpu(std::shared_ptr<Bus> bus)
   : gpr(0)
   , cpsr(0)
   , spsr(0)
@@ -14,6 +17,7 @@ Cpu::Cpu(Bus bus)
     cpsr.set_irq_disabled(true);
     cpsr.set_fiq_disabled(true);
     cpsr.set_state(State::Arm);
+    log_info("CPU successfully initialised");
 }
 
 /* change modes */
@@ -103,15 +107,13 @@ Cpu::chg_mode(Mode from, Mode to) {
     cpsr.set_mode(to);
 }
 
-//  set register
-inline uint32_t&
-Cpu::operator[](uint8_t idx) {
-    // avoid unneeded complexity like index checks
-    return gpr[idx];
-}
+void
+Cpu::step() {
+    uint32_t insn = 0xffffffff;
 
-// get register
-inline const uint32_t&
-Cpu::operator[](uint8_t idx) const {
-    return gpr[idx];
+    if (cpsr.state() == State::Arm) {
+        std::string disassembled = exec_arm(insn);
+        log_info("{:#010X} : {}", gpr[15], disassembled);
+        gpr[15] += ARM_INSTRUCTION_SIZE;
+    }
 }

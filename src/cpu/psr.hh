@@ -1,6 +1,5 @@
 #pragma once
 
-#include "util/bits.hh"
 #include "utility.hh"
 #include <cstdint>
 
@@ -14,7 +13,7 @@ class Psr {
     void set_mode(Mode mode);
 
     // State : [5]
-    bool state() const;
+    State state() const;
     void set_state(State state);
 
 #define GET_SET_NTH_BIT_FUNCTIONS(name)                                        \
@@ -42,6 +41,8 @@ class Psr {
     GET_SET_NTH_BIT_FUNCTIONS(n)
 
 #undef GET_SET_NTH_BIT_FUNCTIONS
+
+    bool condition(Condition cond) const;
 
   private:
     static constexpr uint32_t PSR_CLEAR_RESERVED = 0xf00000ff;

@@ -1,7 +1,11 @@
 #include "memory.hh"
 #include "header.hh"
+#include "util/bits.hh"
 #include "util/log.hh"
 #include "util/utils.hh"
+#include <bitset>
+
+using namespace logger;
 
 Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
                std::vector<uint8_t>&& rom) noexcept
@@ -13,20 +17,21 @@ Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
   , oam_obj_attr(0)
   , rom(std::move(rom)) {
     std::string bios_hash = crypto::sha256(bios.data(), bios.size());
-    std::string expected_hash =
+    static constexpr char expected_hash[] =
       "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570";
 
     if (bios_hash != expected_hash) {
-        log_warn("BIOS hash failed to match, run at your own risk",
-                 "\nExpected : ",
+        log_warn("BIOS hash failed to match, run at your own risk"
+                 "\nExpected : {} "
+                 "\nGot      : {}",
                  expected_hash,
-                 "\nGot      : ",
                  bios_hash);
     }
 
     parse_header();
 
-    log("Memory successfully initialised");
+    log_info("Memory successfully initialised");
+    log_info("Cartridge Title: {}", header.title);
 };
 
 #define MATCHES(area) address >= area##_START&& address <= area##_END
@@ -164,7 +169,7 @@ Memory::parse_header() {
             break;
 
         default:
-            log_error("HEADER: invalid unique code: ", rom[0xAC]);
+            log_error("HEADER: invalid unique code: {}", rom[0xAC]);
     }
 
     header.title_code[0] = rom[0xAD];
@@ -194,7 +199,7 @@ Memory::parse_header() {
             break;
 
         default:
-            log_error("HEADER: invalid destination/language - ", rom[0xAF]);
+            log_error("HEADER: invalid destination/language: {}", rom[0xAF]);
     }
 
     if (rom[0xB2] != 0x96)

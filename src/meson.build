@@ -6,10 +6,13 @@ lib_sources = files(
 subdir('util')
 subdir('cpu')
 
+fmt = dependency('fmt', version : '>=10.1.0')
 lib = library(
   meson.project_name(),
   lib_sources,
-  install: true
+  dependencies: [fmt],
+  install: true,
+  cpp_args: '-DFMT_HEADER_ONLY'
 )
 
 import('pkgconfig').generate(lib)

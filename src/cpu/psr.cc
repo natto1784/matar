@@ -1,5 +1,6 @@
 #include "psr.hh"
 #include "util/bits.hh"
+#include "util/log.hh"
 
 Psr::Psr(uint32_t raw) {
     psr = raw & PSR_CLEAR_RESERVED;
@@ -16,9 +17,9 @@ Psr::set_mode(Mode mode) {
     psr |= static_cast<uint32_t>(mode);
 }
 
-bool
+State
 Psr::state() const {
-    return get_nth_bit(psr, 5);
+    return static_cast<State>(get_nth_bit(psr, 5));
 }
 
 void
@@ -47,3 +48,39 @@ GET_SET_NTH_BIT_FUNCTIONS(z, 30);
 GET_SET_NTH_BIT_FUNCTIONS(n, 31);
 
 #undef GET_SET_NTH_BIT_FUNCTIONS
+
+bool
+Psr::condition(Condition cond) const {
+    switch (cond) {
+        case Condition::EQ:
+            return z();
+        case Condition::NE:
+            return !z();
+        case Condition::CS:
+            return c();
+        case Condition::CC:
+            return !c();
+        case Condition::MI:
+            return n();
+        case Condition::PL:
+            return !n();
+        case Condition::VS:
+            return v();
+        case Condition::VC:
+            return !v();
+        case Condition::HI:
+            return c() && !z();
+        case Condition::LS:
+            return !c() || z();
+        case Condition::GE:
+            return n() == v();
+        case Condition::LT:
+            return n() != v();
+        case Condition::GT:
+            return !z() && (n() == v());
+        case Condition::LE:
+            return z() || (n() != v());
+        case Condition::AL:
+            return true;
+    }
+}

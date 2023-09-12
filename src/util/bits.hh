@@ -8,7 +8,7 @@ using std::size_t;
 template<std::integral Int>
 inline bool
 get_nth_bit(Int num, size_t n) {
-    return (1 && (num >> n));
+    return (num >> n) & 1;
 }
 
 template<std::integral Int>
@@ -26,14 +26,15 @@ rst_nth_bit(Int& num, size_t n) {
 template<std::integral Int>
 inline void
 chg_nth_bit(Int& num, size_t n, bool x) {
-    num ^= (num ^ -x) & 1 << n;
+    num = (num & ~(1 << n)) | (x << n);
 }
 
 /// read range of bits from start to end inclusive
-template<std::unsigned_integral Int>
+template<std::integral Int>
 inline Int
-get_bit_range(Int& num, size_t start, size_t end) {
-    // NOTE: we do not require -1 if it is a signed integral (which it is not)
-    Int left = std::numeric_limits<Int>::digits - 1 - end;
+get_bit_range(Int num, size_t start, size_t end) {
+    // NOTE: we do not require -1 if it is a signed integral
+    Int left =
+      std::numeric_limits<Int>::digits - (std::is_unsigned<Int>::value) - end;
     return num << left >> (left + start);
 }

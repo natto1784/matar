@@ -1,12 +1,18 @@
+#include "bus.hh"
+#include "cpu/cpu.hh"
 #include "memory.hh"
 #include <array>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <vector>
 
 int
 main(int argc, const char* argv[]) {
+    std::vector<uint8_t> rom;
+    std::array<uint8_t, Memory::BIOS_SIZE> bios;
+
     auto usage = [argv]() {
         std::cerr << "Usage: " << argv[0] << " <file> [-b <bios>]" << std::endl;
         std::exit(EXIT_FAILURE);
@@ -35,8 +41,6 @@ main(int argc, const char* argv[]) {
 
     try {
         std::ifstream ifile(rom_file, std::ios::in | std::ios::binary);
-        std::vector<uint8_t> rom;
-        std::array<uint8_t, Memory::BIOS_SIZE> bios;
         std::streampos bios_size;
 
         if (!ifile.is_open()) {
@@ -68,11 +72,16 @@ main(int argc, const char* argv[]) {
 
         ifile.close();
 
-        Memory memory(std::move(bios), std::move(rom));
     } catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;
         return 1;
     }
 
+    {
+        Memory memory(std::move(bios), std::move(rom));
+        Bus bus(std::make_shared<Memory>(memory));
+        Cpu cpu(std::make_shared<Bus>(bus));
+        cpu.step();
+    }
     return 0;
 }
