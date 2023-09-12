@@ -6,11 +6,11 @@
 
 using namespace logger;
 
-Cpu::Cpu(std::shared_ptr<Bus> bus)
+Cpu::Cpu(Bus& bus)
   : gpr(0)
   , cpsr(0)
   , spsr(0)
-  , bus(bus)
+  , bus(std::make_shared<Bus>(bus))
   , gpr_banked({ { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 } })
   , spsr_banked({ 0, 0, 0, 0, 0 }) {
     cpsr.set_mode(Mode::System);

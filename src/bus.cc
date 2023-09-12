@@ -1,8 +1,8 @@
 #include "bus.hh"
 #include <memory>
 
-Bus::Bus(std::shared_ptr<Memory> memory)
-  : memory(memory) {}
+Bus::Bus(Memory& memory)
+  : memory(std::make_shared<Memory>(memory)) {}
 
 uint8_t
 Bus::read_byte(size_t address) {

@@ -22,7 +22,7 @@ Cpu::exec_arm(uint32_t insn) {
     };
 
     // Branch and exhcange
-    if ((insn & 0x0ffffff0) == 0x012fff10) {
+    if ((insn & 0x0FFFFFF0) == 0x012FFF10) {
         static constexpr char syn[] = "BX";
 
         uint8_t rn = insn & 0b1111;
@@ -46,7 +46,7 @@ Cpu::exec_arm(uint32_t insn) {
                 rst_nth_bit(gpr[15], 1);
         }
         // Branch
-    } else if ((insn & 0x0e000000) == 0x0a000000) {
+    } else if ((insn & 0x0E000000) == 0x0A000000) {
         static constexpr char syn[] = "B";
 
         bool link       = get_nth_bit(insn, 24);
@@ -69,7 +69,7 @@ Cpu::exec_arm(uint32_t insn) {
         }
 
         // Multiply
-    } else if ((insn & 0x0fc000f0) == 0x00000090) {
+    } else if ((insn & 0x0FC000F0) == 0x00000090) {
         static constexpr char syn[2][4] = { "MUL", "MLA" };
 
         uint8_t rm = get_bit_range(insn, 0, 3);
@@ -116,7 +116,7 @@ Cpu::exec_arm(uint32_t insn) {
             }
         }
         // Multiply long
-    } else if ((insn & 0x0f8000f0) == 0x00800090) {
+    } else if ((insn & 0x0F8000F0) == 0x00800090) {
         static constexpr char syn[2][2][6] = { { "SMULL", "SMLAL" },
                                                { "UMULL", "UMLAL" } };
 
@@ -177,7 +177,7 @@ Cpu::exec_arm(uint32_t insn) {
         }
 
         // Single data swap
-    } else if ((insn & 0x0fb00ff0) == 0x01000090) {
+    } else if ((insn & 0x0FB00FF0) == 0x01000090) {
         static constexpr char syn[] = "SWP";
 
         uint8_t rm = get_bit_range(insn, 0, 3);
@@ -205,7 +205,7 @@ Cpu::exec_arm(uint32_t insn) {
         // Halfword transfer
         // TODO: create abstraction to reuse for block data and single data
         // transfer
-    } else if ((insn & 0x0e000090) == 0x00000090) {
+    } else if ((insn & 0x0E000090) == 0x00000090) {
         static constexpr char syn[2][4] = { "STR", "LDR" };
 
         uint8_t rm = get_bit_range(insn, 0, 3);
@@ -265,13 +265,13 @@ Cpu::exec_arm(uint32_t insn) {
                         gpr[rd] = bus->read_halfword(address);
                         // sign extend the halfword
                         if (get_nth_bit(gpr[rd], 15))
-                            gpr[rd] |= 0xffff0000;
+                            gpr[rd] |= 0xFFFF0000;
                         // byte
                     } else {
                         // sign extend the byte
                         gpr[rd] = bus->read_byte(address);
                         if (get_nth_bit(gpr[rd], 7))
-                            gpr[rd] |= 0xffffff00;
+                            gpr[rd] |= 0xFFFFFF00;
                     }
                     // unsigned halfword
                 } else if (h) {

@@ -38,7 +38,7 @@
               ".cc"
               ".build"
             ];
-            outputs = [ "dev" "out" ];
+            outputs = [ "out" "dev" ];
 
             inherit nativeBuildInputs;
 

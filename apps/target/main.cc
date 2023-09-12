@@ -79,8 +79,8 @@ main(int argc, const char* argv[]) {
 
     {
         Memory memory(std::move(bios), std::move(rom));
-        Bus bus(std::make_shared<Memory>(memory));
-        Cpu cpu(std::make_shared<Bus>(bus));
+        Bus bus(memory);
+        Cpu cpu(bus);
         cpu.step();
     }
     return 0;

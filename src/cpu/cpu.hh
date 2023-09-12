@@ -9,7 +9,7 @@ using std::size_t;
 
 class Cpu {
   public:
-    Cpu(std::shared_ptr<Bus> bus);
+    Cpu(Bus& bus);
     void step();
 
   private:
