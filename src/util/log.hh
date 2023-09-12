@@ -1,42 +1,57 @@
 #pragma once
 
-#include <iomanip>
+#include <fmt/ostream.h>
 #include <iostream>
-#include <source_location>
-#include <streambuf>
 
-namespace logging {
-enum class Level {
-    Debug,
-    Info,
-    Warn,
-    Error,
-};
+namespace logger {
+inline std::ostream& stream = std::clog;
 
-class Logger {
-  public:
-    Logger(std::ostream& os = std::clog);
-
-    template<typename... Args>
-    void print(Level level, Args&&... args) {
-        set_level(level);
-        (os << ... << args);
-        reset_level();
-        os << std::endl;
-    }
-
-  private:
-    std::ostream& os;
-    void set_level(Level level);
-    void reset_level();
-};
+namespace ansi {
+static constexpr char RED[]     = "\033[31m";
+static constexpr char YELLOW[]  = "\033[33m";
+static constexpr char MAGENTA[] = "\033[35m";
+static constexpr char WHITE[]   = "\033[37m";
+static constexpr char BOLD[]    = "\033[1m";
+static constexpr char RESET[]   = "\033[0m";
 }
 
-extern logging::Logger logger;
+template<typename... Args>
+inline void
+log_raw(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    fmt::println(stream, fmt, std::forward<Args>(args)...);
+}
 
-#define log_debug(...) logger.print(logging::Level::Debug, __VA_ARGS__)
-#define log_info(...) logger.print(logging::Level::Info, __VA_ARGS__)
-#define log_warn(...) logger.print(logging::Level::Warn, __VA_ARGS__)
-#define log_error(...) logger.print(logging::Level::Error, __VA_ARGS__)
-#define log(...) log_info(__VA_ARGS__)
-#define debug(value) log_debug(#value, " = ", value)
+template<typename... Args>
+inline void
+log_debug(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    fmt::print(stream, "{}{}[DEBUG] ", ansi::MAGENTA, ansi::BOLD);
+    log_raw(fmt, std::forward<Args>(args)...);
+    fmt::print(stream, ansi::RESET);
+}
+
+template<typename... Args>
+inline void
+log_info(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    fmt::print(stream, "{}[INFO] ", ansi::WHITE);
+    log_raw(fmt, std::forward<Args>(args)...);
+    fmt::print(stream, ansi::RESET);
+}
+
+template<typename... Args>
+inline void
+log_warn(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    fmt::print(stream, "{}[WARN] ", ansi::YELLOW);
+    log_raw(fmt, std::forward<Args>(args)...);
+    fmt::print(stream, ansi::RESET);
+}
+
+template<typename... Args>
+inline void
+log_error(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    fmt::print(stream, "{}{}[ERROR] ", ansi::RED, ansi::BOLD);
+    log_raw(fmt, std::forward<Args>(args)...);
+    fmt::print(stream, ansi::RESET);
+}
+}
+
+#define debug(value) logger::log_debug("{} = {}", #value, value)

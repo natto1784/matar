@@ -19,7 +19,14 @@
         llvm = pkgs.llvmPackages_16;
         stdenv = llvm.libcxxStdenv;
 
-        nativeBuildInputs = with pkgs; [ meson ninja ];
+        nativeBuildInputs = with pkgs; [
+          meson
+          ninja
+
+          # libraries
+          pkg-config
+          fmt.dev
+        ];
       in
       rec {
         packages = rec {
@@ -49,7 +56,6 @@
 
               # other tools
               valgrind
-
               llvm.lldb
             ]);
           };
