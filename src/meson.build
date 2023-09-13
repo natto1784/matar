@@ -3,7 +3,6 @@ lib_sources = files(
   'bus.cc'
 )
 
-subdir('util')
 subdir('cpu')
 
 fmt = dependency('fmt', version : '>=10.1.0')

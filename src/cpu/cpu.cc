@@ -7,10 +7,10 @@
 using namespace logger;
 
 Cpu::Cpu(Bus& bus)
-  : gpr(0)
+  : bus(std::make_shared<Bus>(bus))
+  , gpr({ 0 })
   , cpsr(0)
   , spsr(0)
-  , bus(std::make_shared<Bus>(bus))
   , gpr_banked({ { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 } })
   , spsr_banked({ 0, 0, 0, 0, 0 }) {
     cpsr.set_mode(Mode::System);
@@ -18,20 +18,25 @@ Cpu::Cpu(Bus& bus)
     cpsr.set_fiq_disabled(true);
     cpsr.set_state(State::Arm);
     log_info("CPU successfully initialised");
+
+    // PC is always two instructions ahead in the pipeline
+    pc += 2 * ARM_INSTRUCTION_SIZE;
 }
 
 /* change modes */
 void
-Cpu::chg_mode(Mode from, Mode to) {
+Cpu::chg_mode(const Mode to) {
+    Mode from = cpsr.mode();
+
     if (from == to)
         return;
 
 /* TODO: replace visible registers with view once I understand how to
  * concatenate views */
 #define STORE_BANKED(mode, MODE)                                               \
-    std::copy(gpr + GPR_##MODE##_BANKED_FIRST,                                 \
-              gpr + GPR_##MODE##_BANKED_FIRST + GPR_##MODE##_BANKED_COUNT,     \
-              gpr_banked.mode)
+    std::copy(gpr.begin() + GPR_##MODE##_FIRST,                                \
+              gpr.begin() + GPR_COUNT - 1,                                     \
+              gpr_banked.mode.begin())
 
     switch (from) {
         case Mode::Fiq:
@@ -66,9 +71,9 @@ Cpu::chg_mode(Mode from, Mode to) {
     }
 
 #define RESTORE_BANKED(mode, MODE)                                             \
-    std::copy(gpr_banked.mode,                                                 \
-              gpr_banked.mode + GPR_##MODE##_BANKED_COUNT,                     \
-              gpr + GPR_##MODE##_BANKED_FIRST)
+    std::copy(gpr_banked.mode.begin(),                                         \
+              gpr_banked.mode.end(),                                           \
+              gpr.begin() + GPR_##MODE##_FIRST)
 
     switch (to) {
         case Mode::Fiq:
@@ -109,11 +114,15 @@ Cpu::chg_mode(Mode from, Mode to) {
 
 void
 Cpu::step() {
-    uint32_t insn = 0xffffffff;
+    uint32_t cur_pc = pc - 2 * ARM_INSTRUCTION_SIZE;
 
     if (cpsr.state() == State::Arm) {
-        std::string disassembled = exec_arm(insn);
-        log_info("{:#010X} : {}", gpr[15], disassembled);
-        gpr[15] += ARM_INSTRUCTION_SIZE;
+        log_info("{:#034b}", bus->read_word(cur_pc));
+
+        std::string disassembled = exec_arm(bus->read_word(cur_pc));
+
+        log_info("{:#010X} : {}", cur_pc, disassembled);
+
+        pc += ARM_INSTRUCTION_SIZE;
     }
 }

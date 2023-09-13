@@ -5,25 +5,27 @@
 #include <cstdint>
 
 using namespace logger;
+using std::array;
+using stringv = std::string_view;
 
 std::string
-Cpu::exec_arm(uint32_t insn) {
+Cpu::exec_arm(const uint32_t insn) {
     Condition cond = static_cast<Condition>(get_bit_range(insn, 28, 31));
     std::string disassembled;
 
-    auto pc_error = [](uint8_t r, const char* syn) {
+    auto pc_error = [](uint8_t r, stringv syn) {
         if (r == 15)
             log_error("Using PC (R15) as operand in {}", syn);
     };
 
-    auto pc_undefined = [](uint8_t r, const char* syn) {
+    auto pc_undefined = [](uint8_t r, stringv syn) {
         if (r == 15)
             log_warn("Using PC (R15) as operand in {}", syn);
     };
 
     // Branch and exhcange
     if ((insn & 0x0FFFFFF0) == 0x012FFF10) {
-        static constexpr char syn[] = "BX";
+        static constexpr stringv syn = "BX";
 
         uint8_t rn = insn & 0b1111;
 
@@ -38,16 +40,16 @@ Cpu::exec_arm(uint32_t insn) {
             cpsr.set_state(state);
 
             // copy to PC
-            gpr[15] = gpr[rn];
+            pc = gpr[rn];
 
             // ignore [1:0] bits for arm and 0 bit for thumb
-            rst_nth_bit(gpr[15], 0);
+            rst_nth_bit(pc, 0);
             if (state == State::Arm)
-                rst_nth_bit(gpr[15], 1);
+                rst_nth_bit(pc, 1);
         }
         // Branch
     } else if ((insn & 0x0E000000) == 0x0A000000) {
-        static constexpr char syn[] = "B";
+        static constexpr stringv syn = "B";
 
         bool link       = get_nth_bit(insn, 24);
         uint32_t offset = get_bit_range(insn, 0, 23);
@@ -63,14 +65,14 @@ Cpu::exec_arm(uint32_t insn) {
                 offset |= 0xFC000000;
 
             if (link)
-                gpr[14] = gpr[15] - ARM_INSTRUCTION_SIZE;
+                gpr[14] = pc - ARM_INSTRUCTION_SIZE;
 
-            gpr[15] += offset;
+            pc += offset - ARM_INSTRUCTION_SIZE;
         }
 
         // Multiply
     } else if ((insn & 0x0FC000F0) == 0x00000090) {
-        static constexpr char syn[2][4] = { "MUL", "MLA" };
+        static constexpr array<stringv, 2> syn = { "MUL", "MLA" };
 
         uint8_t rm = get_bit_range(insn, 0, 3);
         uint8_t rs = get_bit_range(insn, 8, 11);
@@ -117,8 +119,9 @@ Cpu::exec_arm(uint32_t insn) {
         }
         // Multiply long
     } else if ((insn & 0x0F8000F0) == 0x00800090) {
-        static constexpr char syn[2][2][6] = { { "SMULL", "SMLAL" },
-                                               { "UMULL", "UMLAL" } };
+        static constexpr array<array<stringv, 2>, 2> syn = {
+            { { "SMULL", "SMLAL" }, { "UMULL", "UMLAL" } }
+        };
 
         uint8_t rm   = get_bit_range(insn, 0, 3);
         uint8_t rs   = get_bit_range(insn, 8, 11);
@@ -157,7 +160,7 @@ Cpu::exec_arm(uint32_t insn) {
                 gpr[rdhi] = get_bit_range(eval, 32, 63);
 
             } else {
-                int64_t eval = static_cast<uint64_t>(gpr[rm]) *
+                int64_t eval = static_cast<int64_t>(gpr[rm]) *
                                  static_cast<int64_t>(gpr[rs]) +
                                (a ? static_cast<int64_t>(gpr[rdhi]) << 32 |
                                       static_cast<int64_t>(gpr[rdlo])
@@ -178,7 +181,7 @@ Cpu::exec_arm(uint32_t insn) {
 
         // Single data swap
     } else if ((insn & 0x0FB00FF0) == 0x01000090) {
-        static constexpr char syn[] = "SWP";
+        static constexpr stringv syn = "SWP";
 
         uint8_t rm = get_bit_range(insn, 0, 3);
         uint8_t rd = get_bit_range(insn, 12, 15);
@@ -206,32 +209,32 @@ Cpu::exec_arm(uint32_t insn) {
         // TODO: create abstraction to reuse for block data and single data
         // transfer
     } else if ((insn & 0x0E000090) == 0x00000090) {
-        static constexpr char syn[2][4] = { "STR", "LDR" };
+        static constexpr array<stringv, 2> syn_ = { "STR", "LDR" };
 
-        uint8_t rm = get_bit_range(insn, 0, 3);
-        uint8_t h  = get_nth_bit(insn, 5);
-        uint8_t s  = get_nth_bit(insn, 6);
-        uint8_t rd = get_bit_range(insn, 12, 15);
-        uint8_t rn = get_bit_range(insn, 16, 19);
-        bool l     = get_nth_bit(insn, 20);
-        bool w     = get_nth_bit(insn, 21);
-        bool imm   = get_nth_bit(insn, 22);
-        bool u     = get_nth_bit(insn, 23);
-        bool p     = get_nth_bit(insn, 24);
-        uint32_t offset;
+        uint8_t rm      = get_bit_range(insn, 0, 3);
+        uint8_t h       = get_nth_bit(insn, 5);
+        uint8_t s       = get_nth_bit(insn, 6);
+        uint8_t rd      = get_bit_range(insn, 12, 15);
+        uint8_t rn      = get_bit_range(insn, 16, 19);
+        bool l          = get_nth_bit(insn, 20);
+        bool w          = get_nth_bit(insn, 21);
+        bool imm        = get_nth_bit(insn, 22);
+        bool u          = get_nth_bit(insn, 23);
+        bool p          = get_nth_bit(insn, 24);
+        uint32_t offset = 0;
+
+        std::string syn =
+          fmt::format("{}{}{}", syn_[l], (s ? "S" : ""), (h ? 'H' : 'B'));
 
         if (!p && w)
-            log_error("Write-back enabled with post-indexing in {}", syn[l]);
+            log_error("Write-back enabled with post-indexing in {}", syn);
 
         if (s && !l)
-            log_error("Signed data found in {}", syn[l]);
+            log_error("Signed data found in {}", syn);
 
         if (w)
-            pc_error(rn, syn[l]);
-        pc_error(rm, syn[l]);
-
-        if (rd == 15 && !l && s && h)
-            ;
+            pc_error(rn, syn);
+        pc_error(rm, syn);
 
         {
             offset = (imm ? get_bit_range(insn, 8, 11) << 4 | rm : gpr[rm]);
@@ -241,8 +244,8 @@ Cpu::exec_arm(uint32_t insn) {
                                                  (imm ? offset : rm));
 
             disassembled = fmt::format(
-              "{}{}{}{} R{:d}{}",
-              syn[l],
+              "{}{}{}{} R{:d},{}",
+              syn_[l],
               cond,
               (s ? "S" : ""),
               (h ? 'H' : 'B'),
@@ -254,7 +257,10 @@ Cpu::exec_arm(uint32_t insn) {
         }
 
         if (cpsr.condition(cond)) {
-            uint32_t address = (u ? gpr[rn] + offset : gpr[rn] - offset);
+            uint32_t address = gpr[rn];
+
+            if (p)
+                address += (u ? offset : -offset);
 
             // load
             if (l) {
@@ -287,7 +293,92 @@ Cpu::exec_arm(uint32_t insn) {
                     bus->write_halfword(address, gpr[rd]);
                 }
             }
+
+            if (!p)
+                address += (u ? offset : -offset);
+
+            if (!p || w)
+                gpr[rn] = address;
         }
+
+        // Software Interrupt
+        // What to do here?
+    } else if ((insn & 0x0F000000) == 0x0F000000) {
+        static constexpr stringv syn = "SWI";
+
+        if (cpsr.condition(cond)) {
+            chg_mode(Mode::Supervisor);
+            pc   = 0x08;
+            spsr = cpsr;
+        }
+
+        disassembled = fmt::format("{}{} 0", syn, cond);
+
+        // Coprocessor data transfer
+    } else if ((insn & 0x0E000000) == 0x0C000000) {
+        static constexpr array<stringv, 2> syn = { "STC", "LDC" };
+
+        [[maybe_unused]] uint8_t offset = get_bit_range(insn, 0, 7);
+        uint8_t cpn                     = get_bit_range(insn, 8, 11);
+        uint8_t crd                     = get_bit_range(insn, 12, 15);
+        [[maybe_unused]] uint8_t rn     = get_bit_range(insn, 16, 19);
+        bool l                          = get_nth_bit(insn, 20);
+        [[maybe_unused]] bool w         = get_nth_bit(insn, 21);
+        bool n                          = get_nth_bit(insn, 22);
+        [[maybe_unused]] bool u         = get_nth_bit(insn, 23);
+        [[maybe_unused]] bool p         = get_nth_bit(insn, 24);
+
+        disassembled = fmt::format(
+          "{}{}{} p{},c{},{}", syn[l], cond, (n ? "L" : ""), cpn, crd, "a.");
+
+        log_error("Unimplemented instruction: {}", syn[l]);
+
+        // Coprocessor data operation
+    } else if ((insn & 0x0F000010) == 0x0E000000) {
+        static constexpr stringv syn = "CDP";
+
+        uint8_t crm    = get_bit_range(insn, 0, 4);
+        uint8_t cp     = get_bit_range(insn, 5, 7);
+        uint8_t cpn    = get_bit_range(insn, 8, 11);
+        uint8_t crd    = get_bit_range(insn, 12, 15);
+        uint8_t crn    = get_bit_range(insn, 16, 19);
+        uint8_t cp_opc = get_bit_range(insn, 20, 23);
+
+        disassembled = fmt::format("{}{} p{},{},c{},c{},c{},{}",
+                                   syn,
+                                   cond,
+                                   cpn,
+                                   cp_opc,
+                                   crd,
+                                   crn,
+                                   crm,
+                                   cp);
+
+        log_error("Unimplemented instruction: {}", syn);
+
+        // Coprocessor register transfer
+    } else if ((insn & 0x0F000010) == 0x0E000010) {
+        static constexpr array<stringv, 2> syn = { "MCR", "MRC" };
+
+        uint8_t crm    = get_bit_range(insn, 0, 4);
+        uint8_t cp     = get_bit_range(insn, 5, 7);
+        uint8_t cpn    = get_bit_range(insn, 8, 11);
+        uint8_t rd     = get_bit_range(insn, 12, 15);
+        uint8_t crn    = get_bit_range(insn, 16, 19);
+        bool l         = get_nth_bit(insn, 20);
+        uint8_t cp_opc = get_bit_range(insn, 21, 23);
+
+        disassembled = fmt::format("{}{} p{},{},c{},c{},c{},{}",
+                                   syn[l],
+                                   cond,
+                                   cpn,
+                                   cp_opc,
+                                   rd,
+                                   crn,
+                                   crm,
+                                   cp);
+
+        log_error("Unimplemented instruction: {}", syn[l]);
     }
 
     return disassembled;

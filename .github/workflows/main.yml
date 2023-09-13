@@ -1,0 +1,28 @@
+name: matar
+on: [push, pull_request, workflow_dispatch]
+
+env:
+  BUILDDIR: build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v20
+        with:
+          extra_nix_config: |
+            auto-optimise-store = true
+            experimental-features = nix-command flakes
+
+      - name: meson build
+        run: nix develop -c meson setup $BUILDDIR
+
+      - name: clang-format check
+        run: nix develop -c ninja clang-format-check -C $BUILDDIR
+
+      - name: clang-tidy check
+        run: nix develop -c ninja clang-tidy -C $BUILDDIR
+
+      - name: ninja compile
+        run: nix develop -c ninja -C $BUILDDIR

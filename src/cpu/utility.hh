@@ -40,6 +40,12 @@ enum class Condition {
     AL = 0b1110
 };
 
+// https://fmt.dev/dev/api.html#std-ostream-support
+std::ostream&
+operator<<(std::ostream& os, const Condition cond);
+template<>
+struct fmt::formatter<Condition> : ostream_formatter {};
+
 enum class OpCode {
     AND = 0b0000,
     EOR = 0b0001,
@@ -68,6 +74,6 @@ enum class ShiftType {
 
 // https://fmt.dev/dev/api.html#std-ostream-support
 std::ostream&
-operator<<(std::ostream& os, const Condition cond);
+operator<<(std::ostream& os, const ShiftType cond);
 template<>
-struct fmt::formatter<Condition> : ostream_formatter {};
+struct fmt::formatter<ShiftType> : ostream_formatter {};

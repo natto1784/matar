@@ -8,10 +8,12 @@
 #include <memory>
 #include <vector>
 
+// NOLINTBEGIN
+
 int
 main(int argc, const char* argv[]) {
     std::vector<uint8_t> rom;
-    std::array<uint8_t, Memory::BIOS_SIZE> bios;
+    std::array<uint8_t, Memory::BIOS_SIZE> bios = { 0 };
 
     auto usage = [argv]() {
         std::cerr << "Usage: " << argv[0] << " <file> [-b <bios>]" << std::endl;
@@ -85,3 +87,5 @@ main(int argc, const char* argv[]) {
     }
     return 0;
 }
+
+// NOLINTEND

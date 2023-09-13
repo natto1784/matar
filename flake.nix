@@ -8,7 +8,7 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "i686-linux"
+ #       "i686-linux"
       ];
       eachSystem = with nixpkgs.lib; f: foldAttrs mergeAttrs { }
         (map (s: mapAttrs (_: v: { ${s} = v; }) (f s)) systems);
@@ -53,10 +53,6 @@
             packages = nativeBuildInputs ++ (with pkgs; [
               # dev tools
               clang-tools_16
-
-              # other tools
-              valgrind
-              llvm.lldb
             ]);
           };
           default = matar;

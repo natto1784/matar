@@ -2,9 +2,8 @@
 #include "util/bits.hh"
 #include "util/log.hh"
 
-Psr::Psr(uint32_t raw) {
-    psr = raw & PSR_CLEAR_RESERVED;
-}
+Psr::Psr(uint32_t raw)
+  : psr(raw & PSR_CLEAR_RESERVED) {}
 
 Mode
 Psr::mode() const {

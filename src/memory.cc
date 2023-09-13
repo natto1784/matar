@@ -10,14 +10,14 @@ using namespace logger;
 Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
                std::vector<uint8_t>&& rom) noexcept
   : bios(std::move(bios))
-  , board_wram(0)
-  , chip_wram(0)
-  , palette_ram(0)
-  , vram(0)
-  , oam_obj_attr(0)
+  , board_wram({ 0 })
+  , chip_wram({ 0 })
+  , palette_ram({ 0 })
+  , vram({ 0 })
+  , oam_obj_attr({ 0 })
   , rom(std::move(rom)) {
-    std::string bios_hash = crypto::sha256(bios.data(), bios.size());
-    static constexpr char expected_hash[] =
+    std::string bios_hash = crypto::sha256(this->bios);
+    static constexpr std::string_view expected_hash =
       "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570";
 
     if (bios_hash != expected_hash) {
@@ -137,7 +137,7 @@ Memory::parse_header() {
         log_info("HEADER: BIOS debugger bits not set to 0");
 
     // game info
-    std::copy(&rom[0xA0], &rom[0xA0 + 12], header.title);
+    header.title = std::string(&rom[0xA0], &rom[0xA0 + 12]);
 
     switch (rom[0xAC]) {
         case 'A':
@@ -172,8 +172,7 @@ Memory::parse_header() {
             log_error("HEADER: invalid unique code: {}", rom[0xAC]);
     }
 
-    header.title_code[0] = rom[0xAD];
-    header.title_code[1] = rom[0xAE];
+    header.title_code = std::string(&rom[0xAD], &rom[0xAE]);
 
     switch (rom[0xAF]) {
         case 'J':

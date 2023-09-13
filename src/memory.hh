@@ -29,7 +29,7 @@ class Memory {
 
 #define DECL_MEMORY(name, ident, start, end)                                   \
     MEMORY_REGION(name, start, end)                                            \
-    uint8_t ident[name##_END - name##_START + 1];
+    std::array<uint8_t, name##_END - name##_START + 1> ident;
 
     MEMORY_REGION(BIOS, 0x00000000, 0x00003FFF)
     std::array<uint8_t, BIOS_SIZE> bios;

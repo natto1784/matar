@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 typedef struct {
@@ -33,9 +34,9 @@ typedef struct {
     };
 
     uint32_t entrypoint;
-    char title[12];
+    std::string title;
+    std::string title_code;
     UniqueCode unique_code;
-    char title_code[2];
     I18n i18n;
     uint8_t version;
     BootMode multiboot;

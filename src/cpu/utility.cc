@@ -32,3 +32,23 @@ operator<<(std::ostream& os, const Condition cond) {
 
     return os;
 }
+
+std::ostream&
+operator<<(std::ostream& os, const ShiftType shift_type) {
+
+#define CASE(type)                                                             \
+    case ShiftType::type:                                                      \
+        os << #type;                                                           \
+        break;
+
+    switch (shift_type) {
+        CASE(LSL)
+        CASE(LSR)
+        CASE(ASR)
+        CASE(ROR)
+    }
+
+#undef CASE
+
+    return os;
+}
