@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bus.hh"
+#include "instruction.hh"
 #include "psr.hh"
 
 #include <cstdint>
@@ -50,5 +51,5 @@ class Cpu {
     } spsr_banked; // banked saved program status registers
 
     void chg_mode(const Mode to);
-    std::string exec_arm(const uint32_t insn);
+    void exec_arm(const ArmInstruction instruction);
 };

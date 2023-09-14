@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-typedef struct {
+struct Header {
     enum class UniqueCode {
         Old,        // old games
         New,        // new games
@@ -42,4 +42,4 @@ typedef struct {
     BootMode multiboot;
     uint32_t multiboot_entrypoint;
     uint8_t slave_id;
-} Header;
+};

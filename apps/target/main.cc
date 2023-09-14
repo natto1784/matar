@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <unistd.h>
 #include <vector>
 
 // NOLINTBEGIN
@@ -83,7 +84,10 @@ main(int argc, const char* argv[]) {
         Memory memory(std::move(bios), std::move(rom));
         Bus bus(memory);
         Cpu cpu(bus);
-        cpu.step();
+        while (true) {
+            cpu.step();
+            sleep(1);
+        }
     }
     return 0;
 }

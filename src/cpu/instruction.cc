@@ -1,342 +1,181 @@
-#include "cpu.hh"
-#include "cpu/utility.hh"
+#include "instruction.hh"
 #include "util/bits.hh"
-#include "util/log.hh"
-#include <cstdint>
 
-using namespace logger;
-using std::array;
-using stringv = std::string_view;
-
-std::string
-Cpu::exec_arm(const uint32_t insn) {
-    Condition cond = static_cast<Condition>(get_bit_range(insn, 28, 31));
-    std::string disassembled;
-
-    auto pc_error = [](uint8_t r, stringv syn) {
-        if (r == 15)
-            log_error("Using PC (R15) as operand in {}", syn);
-    };
-
-    auto pc_undefined = [](uint8_t r, stringv syn) {
-        if (r == 15)
-            log_warn("Using PC (R15) as operand in {}", syn);
-    };
-
+ArmInstruction::ArmInstruction(uint32_t insn)
+  : condition(static_cast<Condition>(get_bit_range(insn, 28, 31))) {
     // Branch and exhcange
     if ((insn & 0x0FFFFFF0) == 0x012FFF10) {
-        static constexpr stringv syn = "BX";
-
         uint8_t rn = insn & 0b1111;
 
-        pc_undefined(rn, syn);
+        data = BranchAndExchange{ rn };
 
-        disassembled = fmt::format("{}{} R{:d}", syn, cond, rn);
-
-        if (cpsr.condition(cond)) {
-            State state = static_cast<State>(rn & 1);
-
-            // set state
-            cpsr.set_state(state);
-
-            // copy to PC
-            pc = gpr[rn];
-
-            // ignore [1:0] bits for arm and 0 bit for thumb
-            rst_nth_bit(pc, 0);
-            if (state == State::Arm)
-                rst_nth_bit(pc, 1);
-        }
         // Branch
     } else if ((insn & 0x0E000000) == 0x0A000000) {
-        static constexpr stringv syn = "B";
-
         bool link       = get_nth_bit(insn, 24);
         uint32_t offset = get_bit_range(insn, 0, 23);
 
-        disassembled =
-          fmt::format("{}{}{} {:#08X}", syn, (link ? "L" : ""), cond, offset);
-
-        if (cpsr.condition(cond)) {
-            // lsh 2 and sign extend the 26 bit offset to 32
-            // bits
-            offset <<= 2;
-            if (get_nth_bit(offset, 25))
-                offset |= 0xFC000000;
-
-            if (link)
-                gpr[14] = pc - ARM_INSTRUCTION_SIZE;
-
-            pc += offset - ARM_INSTRUCTION_SIZE;
-        }
+        data = Branch{ .link = link, .offset = offset };
 
         // Multiply
     } else if ((insn & 0x0FC000F0) == 0x00000090) {
-        static constexpr array<stringv, 2> syn = { "MUL", "MLA" };
-
         uint8_t rm = get_bit_range(insn, 0, 3);
         uint8_t rs = get_bit_range(insn, 8, 11);
         uint8_t rn = get_bit_range(insn, 12, 15);
         uint8_t rd = get_bit_range(insn, 16, 19);
-        bool s     = get_nth_bit(insn, 20);
-        bool a     = get_nth_bit(insn, 21);
+        bool set   = get_nth_bit(insn, 20);
+        bool acc   = get_nth_bit(insn, 21);
 
-        if (rd == rm)
-            log_error("rd and rm are not distinct in {} : {:d}", syn[a], rd);
-
-        pc_error(rd, syn[a]);
-        pc_error(rm, syn[a]);
-        pc_error(rs, syn[a]);
-
-        if (a) {
-            pc_error(rn, syn[a]);
-            disassembled = fmt::format("{}{}{} R{:d},R{:d},R{:d},R{:d}",
-                                       syn[a],
-                                       cond,
-                                       (s ? "S" : ""),
-                                       rd,
-                                       rm,
-                                       rs,
-                                       rn);
-        } else {
-            disassembled = fmt::format("{}{}{} R{:d},R{:d},R{:d}",
-                                       syn[a],
-                                       cond,
-                                       (s ? "S" : ""),
-                                       rd,
-                                       rm,
-                                       rs);
-        }
-
-        if (cpsr.condition(cond)) {
-            gpr[rd] = gpr[rm] * gpr[rs] + (a ? gpr[rn] : 0);
-
-            if (s) {
-                cpsr.set_z(!static_cast<bool>(gpr[rd]));
-                cpsr.set_n(get_nth_bit(gpr[rd], 31));
-                cpsr.set_c(0);
-            }
-        }
-        // Multiply long
-    } else if ((insn & 0x0F8000F0) == 0x00800090) {
-        static constexpr array<array<stringv, 2>, 2> syn = {
-            { { "SMULL", "SMLAL" }, { "UMULL", "UMLAL" } }
+        data = Multiply{
+            .rm = rm, .rs = rs, .rn = rn, .rd = rd, .set = set, .acc = acc
         };
 
+        // Multiply long
+    } else if ((insn & 0x0F8000F0) == 0x00800090) {
         uint8_t rm   = get_bit_range(insn, 0, 3);
         uint8_t rs   = get_bit_range(insn, 8, 11);
         uint8_t rdlo = get_bit_range(insn, 12, 15);
         uint8_t rdhi = get_bit_range(insn, 16, 19);
-        bool s       = get_nth_bit(insn, 20);
-        bool a       = get_nth_bit(insn, 21);
-        bool u       = get_nth_bit(insn, 22);
+        bool set     = get_nth_bit(insn, 20);
+        bool acc     = get_nth_bit(insn, 21);
+        bool uns     = get_nth_bit(insn, 22);
 
-        if (rdhi == rdlo || rdhi == rm || rdlo == rm)
-            log_error("rdhi, rdlo and rm are not distinct in {}", syn[u][a]);
+        data = MultiplyLong{ .rm   = rm,
+                             .rs   = rs,
+                             .rdlo = rdlo,
+                             .rdhi = rdhi,
+                             .set  = set,
+                             .acc  = acc,
+                             .uns  = uns };
 
-        pc_error(rdhi, syn[u][a]);
-        pc_error(rdlo, syn[u][a]);
-        pc_error(rm, syn[u][a]);
-        pc_error(rs, syn[u][a]);
-
-        disassembled = fmt::format("{}{}{} R{:d},R{:d},R{:d},R{:d}",
-                                   syn[u][a],
-                                   cond,
-                                   (s ? "S" : ""),
-                                   rdlo,
-                                   rdhi,
-                                   rm,
-                                   rs);
-
-        if (cpsr.condition(cond)) {
-            if (u) {
-                uint64_t eval = static_cast<uint64_t>(gpr[rm]) *
-                                  static_cast<uint64_t>(gpr[rs]) +
-                                (a ? static_cast<uint64_t>(gpr[rdhi]) << 32 |
-                                       static_cast<uint64_t>(gpr[rdlo])
-                                   : 0);
-
-                gpr[rdlo] = get_bit_range(eval, 0, 31);
-                gpr[rdhi] = get_bit_range(eval, 32, 63);
-
-            } else {
-                int64_t eval = static_cast<int64_t>(gpr[rm]) *
-                                 static_cast<int64_t>(gpr[rs]) +
-                               (a ? static_cast<int64_t>(gpr[rdhi]) << 32 |
-                                      static_cast<int64_t>(gpr[rdlo])
-                                  : 0);
-
-                gpr[rdlo] = get_bit_range(eval, 0, 31);
-                gpr[rdhi] = get_bit_range(eval, 32, 63);
-            }
-
-            if (s) {
-                cpsr.set_z(!(static_cast<bool>(gpr[rdhi]) ||
-                             static_cast<bool>(gpr[rdlo])));
-                cpsr.set_n(get_nth_bit(gpr[rdhi], 31));
-                cpsr.set_c(0);
-                cpsr.set_v(0);
-            }
-        }
+        // Undefined
+    } else if ((insn & 0x0E000010) == 0x06000010) {
+        data = Undefined{};
 
         // Single data swap
     } else if ((insn & 0x0FB00FF0) == 0x01000090) {
-        static constexpr stringv syn = "SWP";
-
         uint8_t rm = get_bit_range(insn, 0, 3);
         uint8_t rd = get_bit_range(insn, 12, 15);
         uint8_t rn = get_bit_range(insn, 16, 19);
-        bool b     = get_nth_bit(insn, 22);
+        bool byte  = get_nth_bit(insn, 22);
 
-        pc_undefined(rm, syn);
-        pc_undefined(rn, syn);
-        pc_undefined(rd, syn);
+        data = SingleDataSwap{ .rm = rm, .rd = rd, .rn = rn, .byte = byte };
 
-        disassembled = fmt::format(
-          "{}{}{} R{:d},R{:d},[R{:d}]", syn, cond, (b ? "B" : ""), rd, rm, rn);
+        // Single data transfer
+    } else if ((insn & 0x0C000000) == 0x04000000) {
 
-        if (cpsr.condition(cond)) {
-            if (b) {
-                gpr[rd] = bus->read_byte(gpr[rn]);
-                bus->write_byte(gpr[rn], gpr[rm] & 0xFF);
-            } else {
-                gpr[rd] = bus->read_word(gpr[rn]);
-                bus->write_word(gpr[rn], gpr[rm]);
-            }
+        std::variant<uint16_t, Shift> offset;
+        uint8_t rd = get_bit_range(insn, 12, 15);
+        uint8_t rn = get_bit_range(insn, 16, 19);
+        bool load  = get_nth_bit(insn, 20);
+        bool write = get_nth_bit(insn, 21);
+        bool byte  = get_nth_bit(insn, 22);
+        bool up    = get_nth_bit(insn, 23);
+        bool pre   = get_nth_bit(insn, 24);
+        bool imm   = get_nth_bit(insn, 25);
+
+        if (imm) {
+            uint8_t rm = get_bit_range(insn, 0, 3);
+            bool reg   = get_nth_bit(insn, 4);
+            ShiftType shift_type =
+              static_cast<ShiftType>(get_bit_range(insn, 5, 6));
+            uint8_t operand = get_bit_range(insn, (reg ? 8 : 7), 11);
+
+            offset = Shift{ .rm   = rm,
+                            .data = ShiftData{ .type      = shift_type,
+                                               .immediate = !reg,
+                                               .operand   = operand } };
+        } else {
+            offset = static_cast<uint16_t>(get_bit_range(insn, 0, 11));
         }
+
+        data = SingleDataTransfer{ .offset = offset,
+                                   .rd     = rd,
+                                   .rn     = rn,
+                                   .load   = load,
+                                   .write  = write,
+                                   .byte   = byte,
+                                   .up     = up,
+                                   .pre    = pre };
 
         // Halfword transfer
-        // TODO: create abstraction to reuse for block data and single data
-        // transfer
     } else if ((insn & 0x0E000090) == 0x00000090) {
-        static constexpr array<stringv, 2> syn_ = { "STR", "LDR" };
+        uint8_t offset = get_bit_range(insn, 0, 3);
+        bool half      = get_nth_bit(insn, 5);
+        bool sign      = get_nth_bit(insn, 6);
+        uint8_t rd     = get_bit_range(insn, 12, 15);
+        uint8_t rn     = get_bit_range(insn, 16, 19);
+        bool load      = get_nth_bit(insn, 20);
+        bool write     = get_nth_bit(insn, 21);
+        bool imm       = get_nth_bit(insn, 22);
+        bool up        = get_nth_bit(insn, 23);
+        bool pre       = get_nth_bit(insn, 24);
 
-        uint8_t rm      = get_bit_range(insn, 0, 3);
-        uint8_t h       = get_nth_bit(insn, 5);
-        uint8_t s       = get_nth_bit(insn, 6);
-        uint8_t rd      = get_bit_range(insn, 12, 15);
-        uint8_t rn      = get_bit_range(insn, 16, 19);
-        bool l          = get_nth_bit(insn, 20);
-        bool w          = get_nth_bit(insn, 21);
-        bool imm        = get_nth_bit(insn, 22);
-        bool u          = get_nth_bit(insn, 23);
-        bool p          = get_nth_bit(insn, 24);
-        uint32_t offset = 0;
+        offset |= (imm ? get_bit_range(insn, 8, 11) << 2 : 0);
 
-        std::string syn =
-          fmt::format("{}{}{}", syn_[l], (s ? "S" : ""), (h ? 'H' : 'B'));
+        data = HalfwordTransfer{ .offset = offset,
+                                 .half   = half,
+                                 .sign   = sign,
+                                 .rd     = rd,
+                                 .rn     = rn,
+                                 .load   = load,
+                                 .write  = write,
+                                 .imm    = imm,
+                                 .up     = up,
+                                 .pre    = pre };
 
-        if (!p && w)
-            log_error("Write-back enabled with post-indexing in {}", syn);
+        // Block data transfer
+    } else if ((insn & 0x0E000000) == 0x08000000) {
+        /*static constexpr array<stringv, 2> syn = { "STM", "LDM" };
 
-        if (s && !l)
-            log_error("Signed data found in {}", syn);
+        uint16_t regs = get_bit_range(insn, 0, 15);
+        uint8_t rn    = get_bit_range(insn, 16, 19);
+        bool load     = get_nth_bit(insn, 20);
+        bool write    = get_nth_bit(insn, 21);
+        bool s        = get_nth_bit(insn, 22);
+        bool up       = get_nth_bit(insn, 23);
+        bool pre      = get_nth_bit(insn, 24);
 
-        if (w)
-            pc_error(rn, syn);
-        pc_error(rm, syn);
-
+        // disassembly
         {
-            offset = (imm ? get_bit_range(insn, 8, 11) << 4 | rm : gpr[rm]);
-            std::string offset_str = fmt::format("{}{}{:d}",
-                                                 (u ? "" : "-"),
-                                                 (imm ? '#' : 'R'),
-                                                 (imm ? offset : rm));
+            uint8_t lpu = load << 2 | pre << 1 | up;
+            std::string addr_mode;
 
-            disassembled = fmt::format(
-              "{}{}{}{} R{:d},{}",
-              syn_[l],
-              cond,
-              (s ? "S" : ""),
-              (h ? 'H' : 'B'),
-              rd,
-              (!offset ? fmt::format("[R{:d}]", rn)
-               : p
-                 ? fmt::format(",[R{:d},{}]{}", rn, offset_str, (w ? "!" : ""))
-                 : fmt::format(",[R{:d}],{}", rn, offset_str)));
-        }
-
-        if (cpsr.condition(cond)) {
-            uint32_t address = gpr[rn];
-
-            if (p)
-                address += (u ? offset : -offset);
-
-            // load
-            if (l) {
-                // signed
-                if (s) {
-                    // halfword
-                    if (h) {
-                        gpr[rd] = bus->read_halfword(address);
-                        // sign extend the halfword
-                        if (get_nth_bit(gpr[rd], 15))
-                            gpr[rd] |= 0xFFFF0000;
-                        // byte
-                    } else {
-                        // sign extend the byte
-                        gpr[rd] = bus->read_byte(address);
-                        if (get_nth_bit(gpr[rd], 7))
-                            gpr[rd] |= 0xFFFFFF00;
-                    }
-                    // unsigned halfword
-                } else if (h) {
-                    gpr[rd] = bus->read_halfword(address);
-                }
-                // store
-            } else {
-                // halfword
-                if (h) {
-                    // take PC into consideration
-                    if (rd == 15)
-                        address += 12;
-                    bus->write_halfword(address, gpr[rd]);
-                }
+            switch(lpu) {
             }
+            }*/
 
-            if (!p)
-                address += (u ? offset : -offset);
-
-            if (!p || w)
-                gpr[rn] = address;
-        }
+        data = Undefined{};
 
         // Software Interrupt
         // What to do here?
     } else if ((insn & 0x0F000000) == 0x0F000000) {
-        static constexpr stringv syn = "SWI";
 
-        if (cpsr.condition(cond)) {
-            chg_mode(Mode::Supervisor);
-            pc   = 0x08;
-            spsr = cpsr;
-        }
-
-        disassembled = fmt::format("{}{} 0", syn, cond);
+        data = SoftwareInterrupt{};
 
         // Coprocessor data transfer
     } else if ((insn & 0x0E000000) == 0x0C000000) {
-        static constexpr array<stringv, 2> syn = { "STC", "LDC" };
+        uint8_t offset = get_bit_range(insn, 0, 7);
+        uint8_t cpn    = get_bit_range(insn, 8, 11);
+        uint8_t crd    = get_bit_range(insn, 12, 15);
+        uint8_t rn     = get_bit_range(insn, 16, 19);
+        bool load      = get_nth_bit(insn, 20);
+        bool write     = get_nth_bit(insn, 21);
+        bool len       = get_nth_bit(insn, 22);
+        bool up        = get_nth_bit(insn, 23);
+        bool pre       = get_nth_bit(insn, 24);
 
-        [[maybe_unused]] uint8_t offset = get_bit_range(insn, 0, 7);
-        uint8_t cpn                     = get_bit_range(insn, 8, 11);
-        uint8_t crd                     = get_bit_range(insn, 12, 15);
-        [[maybe_unused]] uint8_t rn     = get_bit_range(insn, 16, 19);
-        bool l                          = get_nth_bit(insn, 20);
-        [[maybe_unused]] bool w         = get_nth_bit(insn, 21);
-        bool n                          = get_nth_bit(insn, 22);
-        [[maybe_unused]] bool u         = get_nth_bit(insn, 23);
-        [[maybe_unused]] bool p         = get_nth_bit(insn, 24);
-
-        disassembled = fmt::format(
-          "{}{}{} p{},c{},{}", syn[l], cond, (n ? "L" : ""), cpn, crd, "a.");
-
-        log_error("Unimplemented instruction: {}", syn[l]);
+        data = CoprocessorDataTransfer{ .offset = offset,
+                                        .cpn    = cpn,
+                                        .crd    = crd,
+                                        .rn     = rn,
+                                        .load   = load,
+                                        .write  = write,
+                                        .len    = len,
+                                        .up     = up,
+                                        .pre    = pre };
 
         // Coprocessor data operation
     } else if ((insn & 0x0F000010) == 0x0E000000) {
-        static constexpr stringv syn = "CDP";
-
         uint8_t crm    = get_bit_range(insn, 0, 4);
         uint8_t cp     = get_bit_range(insn, 5, 7);
         uint8_t cpn    = get_bit_range(insn, 8, 11);
@@ -344,42 +183,177 @@ Cpu::exec_arm(const uint32_t insn) {
         uint8_t crn    = get_bit_range(insn, 16, 19);
         uint8_t cp_opc = get_bit_range(insn, 20, 23);
 
-        disassembled = fmt::format("{}{} p{},{},c{},c{},c{},{}",
-                                   syn,
-                                   cond,
-                                   cpn,
-                                   cp_opc,
-                                   crd,
-                                   crn,
-                                   crm,
-                                   cp);
-
-        log_error("Unimplemented instruction: {}", syn);
+        data = CoprocessorDataOperation{ .crm    = crm,
+                                         .cp     = cp,
+                                         .cpn    = cpn,
+                                         .crd    = crd,
+                                         .crn    = crn,
+                                         .cp_opc = cp_opc };
 
         // Coprocessor register transfer
     } else if ((insn & 0x0F000010) == 0x0E000010) {
-        static constexpr array<stringv, 2> syn = { "MCR", "MRC" };
-
         uint8_t crm    = get_bit_range(insn, 0, 4);
         uint8_t cp     = get_bit_range(insn, 5, 7);
         uint8_t cpn    = get_bit_range(insn, 8, 11);
         uint8_t rd     = get_bit_range(insn, 12, 15);
         uint8_t crn    = get_bit_range(insn, 16, 19);
-        bool l         = get_nth_bit(insn, 20);
+        bool load      = get_nth_bit(insn, 20);
         uint8_t cp_opc = get_bit_range(insn, 21, 23);
 
-        disassembled = fmt::format("{}{} p{},{},c{},c{},c{},{}",
-                                   syn[l],
-                                   cond,
-                                   cpn,
-                                   cp_opc,
-                                   rd,
-                                   crn,
-                                   crm,
-                                   cp);
-
-        log_error("Unimplemented instruction: {}", syn[l]);
+        data = CoprocessorRegisterTransfer{ .crm    = crm,
+                                            .cp     = cp,
+                                            .cpn    = cpn,
+                                            .rd     = rd,
+                                            .crn    = crn,
+                                            .load   = load,
+                                            .cp_opc = cp_opc };
+    } else {
+        data = Undefined{};
     }
+}
 
-    return disassembled;
+std::string
+ArmInstruction::disassemble() {
+    static const std::string undefined = "UNDEFINED";
+    // goddamn this is gore
+    // TODO: make this less ugly
+    return std::visit(
+      overloaded{
+        [this](BranchAndExchange& data) {
+            return fmt::format("BX{} R{:d}", condition, data.rn);
+        },
+        [this](Branch& data) {
+            return fmt::format(
+              "B{}{} {:#08X}", (data.link ? "L" : ""), condition, data.offset);
+        },
+        [this](Multiply& data) {
+            if (data.acc) {
+                return fmt::format("MLA{}{} R{:d},R{:d},R{:d},R{:d}",
+                                   condition,
+                                   (data.set ? "S" : ""),
+                                   data.rd,
+                                   data.rm,
+                                   data.rs,
+                                   data.rn);
+            } else {
+                return fmt::format("MUL{}{} R{:d},R{:d},R{:d}",
+                                   condition,
+                                   (data.set ? "S" : ""),
+                                   data.rd,
+                                   data.rm,
+                                   data.rs);
+            }
+        },
+        [this](MultiplyLong& data) {
+            return fmt::format("{}{}{}{} R{:d},R{:d},R{:d},R{:d}",
+                               (data.uns ? 'U' : 'S'),
+                               (data.acc ? "MLAL" : "MULL"),
+                               condition,
+                               (data.set ? "S" : ""),
+                               data.rdlo,
+                               data.rdhi,
+                               data.rm,
+                               data.rs);
+        },
+        [](Undefined) { return undefined; },
+        [this](SingleDataSwap& data) {
+            return fmt::format("SWP{}{} R{:d},R{:d},[R{:d}]",
+                               condition,
+                               (data.byte ? "B" : ""),
+                               data.rd,
+                               data.rm,
+                               data.rn);
+        },
+        [this](SingleDataTransfer& data) {
+            std::string expression;
+            std::string address;
+
+            if (const uint16_t* offset = std::get_if<uint16_t>(&data.offset)) {
+                if (*offset == 0) {
+                    expression = "";
+                } else {
+                    expression = fmt::format(",#{:d}", *offset);
+                }
+            } else if (const Shift* shift = std::get_if<Shift>(&data.offset)) {
+                expression = fmt::format(",{}R{:d},{} {}{:d}",
+                                         (data.up ? '+' : '-'),
+                                         shift->rm,
+                                         shift->data.type,
+                                         (shift->data.immediate ? '#' : 'R'),
+                                         shift->data.operand);
+            }
+
+            return fmt::format(
+              "{}{}{}{} R{:d},[R{:d}{}]{}",
+              (data.load ? "LDR" : "STR"),
+              condition,
+              (data.byte ? "B" : ""),
+              (!data.pre && data.write ? "T" : ""),
+              data.rd,
+              data.rn,
+              (data.pre ? expression : ""),
+              (data.pre ? (data.write ? "!" : "") : expression));
+        },
+        [this](HalfwordTransfer& data) {
+            std::string expression;
+
+            if (data.imm) {
+                if (data.offset == 0) {
+                    expression = "";
+                } else {
+                    expression = fmt::format(",#{:d}", data.offset);
+                }
+            } else {
+                expression =
+                  fmt::format(",{}R{:d}", (data.up ? '+' : '-'), data.offset);
+            }
+
+            return fmt::format(
+              "{}{}{}{} R{:d},[R{:d}{}]{}",
+              (data.load ? "LDR" : "STR"),
+              condition,
+              (data.sign ? "S" : ""),
+              (data.half ? 'H' : 'B'),
+              data.rd,
+              data.rn,
+              (data.pre ? expression : ""),
+              (data.pre ? (data.write ? "!" : "") : expression));
+        },
+        [this](SoftwareInterrupt) { return fmt::format("SWI{}", condition); },
+        [this](CoprocessorDataTransfer& data) {
+            std::string expression = fmt::format(",#{:d}", data.offset);
+            return fmt::format(
+              "{}{}{} p{:d},c{:d},[R{:d}{}]{}",
+              (data.load ? "LDC" : "STC"),
+              condition,
+              (data.len ? "L" : ""),
+              data.cpn,
+              data.crd,
+              data.rn,
+              (data.pre ? expression : ""),
+              (data.pre ? (data.write ? "!" : "") : expression));
+        },
+        [this](CoprocessorDataOperation& data) {
+            return fmt::format("CDP{} p{},{},c{},c{},c{},{}",
+                               condition,
+                               data.cpn,
+                               data.cp_opc,
+                               data.crd,
+                               data.crn,
+                               data.crm,
+                               data.cp);
+        },
+        [this](CoprocessorRegisterTransfer& data) {
+            return fmt::format("{}{} p{},{},c{},c{},c{},{}",
+                               (data.load ? "MRC" : "MCR"),
+                               condition,
+                               data.cpn,
+                               data.cp_opc,
+                               data.rd,
+                               data.crn,
+                               data.crm,
+                               data.cp);
+        },
+        [](auto) { return undefined; } },
+      data);
 }
