@@ -1,4 +1,4 @@
-#include "utility.hh"
+#include "cpu/utility.hh"
 #include "util/bits.hh"
 #include <bit>
 

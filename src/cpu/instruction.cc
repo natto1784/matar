@@ -1,4 +1,4 @@
-#include "instruction.hh"
+#include "cpu/instruction.hh"
 #include "util/bits.hh"
 
 ArmInstruction::ArmInstruction(uint32_t insn)
