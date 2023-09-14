@@ -65,6 +65,12 @@ enum class OpCode {
     MVN = 0b1111
 };
 
+// https://fmt.dev/dev/api.html#std-ostream-support
+std::ostream&
+operator<<(std::ostream& os, const OpCode cond);
+template<>
+struct fmt::formatter<OpCode> : ostream_formatter {};
+
 enum class ShiftType {
     LSL = 0b00,
     LSR = 0b01,

@@ -14,14 +14,14 @@ class Cpu {
     void step();
 
   private:
-    static constexpr size_t GPR_COUNT = 16;
+    static constexpr uint8_t GPR_COUNT = 16;
 
-    static constexpr size_t GPR_FIQ_FIRST     = 8;
-    static constexpr size_t GPR_SVC_FIRST     = 13;
-    static constexpr size_t GPR_ABT_FIRST     = 13;
-    static constexpr size_t GPR_IRQ_FIRST     = 13;
-    static constexpr size_t GPR_UND_FIRST     = 13;
-    static constexpr size_t GPR_SYS_USR_FIRST = 8;
+    static constexpr uint8_t GPR_FIQ_FIRST     = 8;
+    static constexpr uint8_t GPR_SVC_FIRST     = 13;
+    static constexpr uint8_t GPR_ABT_FIRST     = 13;
+    static constexpr uint8_t GPR_IRQ_FIRST     = 13;
+    static constexpr uint8_t GPR_UND_FIRST     = 13;
+    static constexpr uint8_t GPR_SYS_USR_FIRST = 8;
 
     std::shared_ptr<Bus> bus;
     std::array<uint32_t, GPR_COUNT> gpr; // general purpose registers
@@ -29,7 +29,13 @@ class Cpu {
     Psr cpsr; // current program status register
     Psr spsr; // status program status register
 
-    uint32_t& pc = gpr[15];
+    static constexpr uint8_t PC_INDEX = 15;
+    uint32_t& pc                      = gpr[PC_INDEX];
+
+    bool is_flushed;
+
+    void chg_mode(const Mode to);
+    void exec_arm(const ArmInstruction instruction);
 
     struct {
         std::array<uint32_t, GPR_COUNT - GPR_FIQ_FIRST - 1> fiq;
@@ -49,7 +55,4 @@ class Cpu {
         Psr irq;
         Psr und;
     } spsr_banked; // banked saved program status registers
-
-    void chg_mode(const Mode to);
-    void exec_arm(const ArmInstruction instruction);
 };

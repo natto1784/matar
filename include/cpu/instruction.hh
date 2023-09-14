@@ -79,6 +79,38 @@ class ArmInstruction {
         bool pre;
     };
 
+    struct BlockDataTransfer {
+        uint16_t regs;
+        uint8_t rn;
+        bool load;
+        bool write;
+        bool s;
+        bool up;
+        bool pre;
+    };
+
+    struct DataProcessing {
+        std::variant<Shift, uint32_t> operand;
+        uint8_t rd;
+        uint8_t rn;
+        bool set;
+        OpCode opcode;
+    };
+
+    struct PsrTransfer {
+        enum class Type {
+            Mrs,
+            Msr,
+            Msr_flg
+        };
+
+        uint32_t operand;
+        bool spsr;
+        Type type;
+        // ignored outside MSR_flg
+        bool imm;
+    };
+
     struct CoprocessorDataTransfer {
         uint8_t offset;
         uint8_t cpn;
@@ -120,6 +152,9 @@ class ArmInstruction {
                                          SingleDataSwap,
                                          SingleDataTransfer,
                                          HalfwordTransfer,
+                                         BlockDataTransfer,
+                                         DataProcessing,
+                                         PsrTransfer,
                                          CoprocessorDataTransfer,
                                          CoprocessorDataOperation,
                                          CoprocessorRegisterTransfer,

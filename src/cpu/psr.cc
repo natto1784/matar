@@ -5,6 +5,16 @@
 Psr::Psr(uint32_t raw)
   : psr(raw & PSR_CLEAR_RESERVED) {}
 
+uint32_t
+Psr::raw() const {
+    return psr;
+}
+
+void
+Psr::set_all(uint32_t raw) {
+    psr = raw & ~PSR_CLEAR_RESERVED;
+}
+
 Mode
 Psr::mode() const {
     return static_cast<Mode>(psr & ~PSR_CLEAR_MODE);
@@ -18,20 +28,20 @@ Psr::set_mode(Mode mode) {
 
 State
 Psr::state() const {
-    return static_cast<State>(get_nth_bit(psr, 5));
+    return static_cast<State>(get_bit(psr, 5));
 }
 
 void
 Psr::set_state(State state) {
-    chg_nth_bit(psr, 5, static_cast<bool>(state));
+    chg_bit(psr, 5, static_cast<bool>(state));
 }
 
 #define GET_SET_NTH_BIT_FUNCTIONS(name, n)                                     \
     bool Psr::name() const {                                                   \
-        return get_nth_bit(psr, n);                                            \
+        return get_bit(psr, n);                                                \
     }                                                                          \
     void Psr::set_##name(bool val) {                                           \
-        chg_nth_bit(psr, n, val);                                              \
+        chg_bit(psr, n, val);                                                  \
     }
 
 GET_SET_NTH_BIT_FUNCTIONS(fiq_disabled, 6)

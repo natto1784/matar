@@ -8,6 +8,9 @@ class Psr {
     // clear the reserved bits i.e, [8:27]
     Psr(uint32_t raw);
 
+    uint32_t raw() const;
+    void set_all(uint32_t raw);
+
     // Mode : [4:0]
     Mode mode() const;
     void set_mode(Mode mode);
@@ -45,8 +48,8 @@ class Psr {
     bool condition(Condition cond) const;
 
   private:
-    static constexpr uint32_t PSR_CLEAR_RESERVED = 0xf00000ff;
-    static constexpr uint32_t PSR_CLEAR_MODE     = 0x0b00000;
+    static constexpr uint32_t PSR_CLEAR_RESERVED = 0xF00000FF;
+    static constexpr uint32_t PSR_CLEAR_MODE     = 0xFFFFFFE0;
 
     uint32_t psr;
 };

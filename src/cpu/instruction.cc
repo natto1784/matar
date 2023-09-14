@@ -1,8 +1,10 @@
 #include "cpu/instruction.hh"
+#include "cpu/utility.hh"
 #include "util/bits.hh"
+#include <iterator>
 
 ArmInstruction::ArmInstruction(uint32_t insn)
-  : condition(static_cast<Condition>(get_bit_range(insn, 28, 31))) {
+  : condition(static_cast<Condition>(bit_range(insn, 28, 31))) {
     // Branch and exhcange
     if ((insn & 0x0FFFFFF0) == 0x012FFF10) {
         uint8_t rn = insn & 0b1111;
@@ -11,19 +13,27 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Branch
     } else if ((insn & 0x0E000000) == 0x0A000000) {
-        bool link       = get_nth_bit(insn, 24);
-        uint32_t offset = get_bit_range(insn, 0, 23);
+        bool link       = get_bit(insn, 24);
+        uint32_t offset = bit_range(insn, 0, 23);
+
+        // lsh 2 and sign extend the 26 bit offset to 32 bits
+        offset <<= 2;
+
+        if (get_bit(offset, 25))
+            offset |= 0xFC000000;
+
+        offset += 2 * ARM_INSTRUCTION_SIZE;
 
         data = Branch{ .link = link, .offset = offset };
 
         // Multiply
     } else if ((insn & 0x0FC000F0) == 0x00000090) {
-        uint8_t rm = get_bit_range(insn, 0, 3);
-        uint8_t rs = get_bit_range(insn, 8, 11);
-        uint8_t rn = get_bit_range(insn, 12, 15);
-        uint8_t rd = get_bit_range(insn, 16, 19);
-        bool set   = get_nth_bit(insn, 20);
-        bool acc   = get_nth_bit(insn, 21);
+        uint8_t rm = bit_range(insn, 0, 3);
+        uint8_t rs = bit_range(insn, 8, 11);
+        uint8_t rn = bit_range(insn, 12, 15);
+        uint8_t rd = bit_range(insn, 16, 19);
+        bool set   = get_bit(insn, 20);
+        bool acc   = get_bit(insn, 21);
 
         data = Multiply{
             .rm = rm, .rs = rs, .rn = rn, .rd = rd, .set = set, .acc = acc
@@ -31,13 +41,13 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Multiply long
     } else if ((insn & 0x0F8000F0) == 0x00800090) {
-        uint8_t rm   = get_bit_range(insn, 0, 3);
-        uint8_t rs   = get_bit_range(insn, 8, 11);
-        uint8_t rdlo = get_bit_range(insn, 12, 15);
-        uint8_t rdhi = get_bit_range(insn, 16, 19);
-        bool set     = get_nth_bit(insn, 20);
-        bool acc     = get_nth_bit(insn, 21);
-        bool uns     = get_nth_bit(insn, 22);
+        uint8_t rm   = bit_range(insn, 0, 3);
+        uint8_t rs   = bit_range(insn, 8, 11);
+        uint8_t rdlo = bit_range(insn, 12, 15);
+        uint8_t rdhi = bit_range(insn, 16, 19);
+        bool set     = get_bit(insn, 20);
+        bool acc     = get_bit(insn, 21);
+        bool uns     = get_bit(insn, 22);
 
         data = MultiplyLong{ .rm   = rm,
                              .rs   = rs,
@@ -53,10 +63,10 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Single data swap
     } else if ((insn & 0x0FB00FF0) == 0x01000090) {
-        uint8_t rm = get_bit_range(insn, 0, 3);
-        uint8_t rd = get_bit_range(insn, 12, 15);
-        uint8_t rn = get_bit_range(insn, 16, 19);
-        bool byte  = get_nth_bit(insn, 22);
+        uint8_t rm = bit_range(insn, 0, 3);
+        uint8_t rd = bit_range(insn, 12, 15);
+        uint8_t rn = bit_range(insn, 16, 19);
+        bool byte  = get_bit(insn, 22);
 
         data = SingleDataSwap{ .rm = rm, .rd = rd, .rn = rn, .byte = byte };
 
@@ -64,28 +74,28 @@ ArmInstruction::ArmInstruction(uint32_t insn)
     } else if ((insn & 0x0C000000) == 0x04000000) {
 
         std::variant<uint16_t, Shift> offset;
-        uint8_t rd = get_bit_range(insn, 12, 15);
-        uint8_t rn = get_bit_range(insn, 16, 19);
-        bool load  = get_nth_bit(insn, 20);
-        bool write = get_nth_bit(insn, 21);
-        bool byte  = get_nth_bit(insn, 22);
-        bool up    = get_nth_bit(insn, 23);
-        bool pre   = get_nth_bit(insn, 24);
-        bool imm   = get_nth_bit(insn, 25);
+        uint8_t rd = bit_range(insn, 12, 15);
+        uint8_t rn = bit_range(insn, 16, 19);
+        bool load  = get_bit(insn, 20);
+        bool write = get_bit(insn, 21);
+        bool byte  = get_bit(insn, 22);
+        bool up    = get_bit(insn, 23);
+        bool pre   = get_bit(insn, 24);
+        bool imm   = get_bit(insn, 25);
 
         if (imm) {
-            uint8_t rm = get_bit_range(insn, 0, 3);
-            bool reg   = get_nth_bit(insn, 4);
+            uint8_t rm = bit_range(insn, 0, 3);
+            bool reg   = get_bit(insn, 4);
             ShiftType shift_type =
-              static_cast<ShiftType>(get_bit_range(insn, 5, 6));
-            uint8_t operand = get_bit_range(insn, (reg ? 8 : 7), 11);
+              static_cast<ShiftType>(bit_range(insn, 5, 6));
+            uint8_t operand = bit_range(insn, (reg ? 8 : 7), 11);
 
             offset = Shift{ .rm   = rm,
                             .data = ShiftData{ .type      = shift_type,
                                                .immediate = !reg,
                                                .operand   = operand } };
         } else {
-            offset = static_cast<uint16_t>(get_bit_range(insn, 0, 11));
+            offset = static_cast<uint16_t>(bit_range(insn, 0, 11));
         }
 
         data = SingleDataTransfer{ .offset = offset,
@@ -99,18 +109,18 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Halfword transfer
     } else if ((insn & 0x0E000090) == 0x00000090) {
-        uint8_t offset = get_bit_range(insn, 0, 3);
-        bool half      = get_nth_bit(insn, 5);
-        bool sign      = get_nth_bit(insn, 6);
-        uint8_t rd     = get_bit_range(insn, 12, 15);
-        uint8_t rn     = get_bit_range(insn, 16, 19);
-        bool load      = get_nth_bit(insn, 20);
-        bool write     = get_nth_bit(insn, 21);
-        bool imm       = get_nth_bit(insn, 22);
-        bool up        = get_nth_bit(insn, 23);
-        bool pre       = get_nth_bit(insn, 24);
+        uint8_t offset = bit_range(insn, 0, 3);
+        bool half      = get_bit(insn, 5);
+        bool sign      = get_bit(insn, 6);
+        uint8_t rd     = bit_range(insn, 12, 15);
+        uint8_t rn     = bit_range(insn, 16, 19);
+        bool load      = get_bit(insn, 20);
+        bool write     = get_bit(insn, 21);
+        bool imm       = get_bit(insn, 22);
+        bool up        = get_bit(insn, 23);
+        bool pre       = get_bit(insn, 24);
 
-        offset |= (imm ? get_bit_range(insn, 8, 11) << 2 : 0);
+        offset |= (imm ? bit_range(insn, 8, 11) << 2 : 0);
 
         data = HalfwordTransfer{ .offset = offset,
                                  .half   = half,
@@ -125,44 +135,99 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Block data transfer
     } else if ((insn & 0x0E000000) == 0x08000000) {
-        /*static constexpr array<stringv, 2> syn = { "STM", "LDM" };
+        uint16_t regs = bit_range(insn, 0, 15);
+        uint8_t rn    = bit_range(insn, 16, 19);
+        bool load     = get_bit(insn, 20);
+        bool write    = get_bit(insn, 21);
+        bool s        = get_bit(insn, 22);
+        bool up       = get_bit(insn, 23);
+        bool pre      = get_bit(insn, 24);
 
-        uint16_t regs = get_bit_range(insn, 0, 15);
-        uint8_t rn    = get_bit_range(insn, 16, 19);
-        bool load     = get_nth_bit(insn, 20);
-        bool write    = get_nth_bit(insn, 21);
-        bool s        = get_nth_bit(insn, 22);
-        bool up       = get_nth_bit(insn, 23);
-        bool pre      = get_nth_bit(insn, 24);
+        data = BlockDataTransfer{ .regs  = regs,
+                                  .rn    = rn,
+                                  .load  = load,
+                                  .write = write,
+                                  .s     = s,
+                                  .up    = up,
+                                  .pre   = pre };
 
-        // disassembly
-        {
-            uint8_t lpu = load << 2 | pre << 1 | up;
-            std::string addr_mode;
+        // Data Processing
+    } else if ((insn & 0x0C000000) == 0x00000000) {
+        uint8_t rd    = bit_range(insn, 12, 15);
+        uint8_t rn    = bit_range(insn, 16, 19);
+        bool set      = get_bit(insn, 20);
+        OpCode opcode = static_cast<OpCode>(bit_range(insn, 21, 24));
+        bool imm      = get_bit(insn, 25);
 
-            switch(lpu) {
+        if ((opcode == OpCode::TST || opcode == OpCode::CMP) && !set) {
+            data = PsrTransfer{ .operand = rd,
+                                .spsr    = get_bit(insn, 22),
+                                .type    = PsrTransfer::Type::Mrs,
+                                .imm     = 0 };
+        } else if ((opcode == OpCode::TEQ || opcode == OpCode::CMN) && !set) {
+            bool imm         = get_bit(insn, 25);
+            uint32_t operand = 0;
+
+            if (imm) {
+                operand = bit_range(insn, 0, 3);
+            } else {
+                uint32_t immediate = bit_range(insn, 0, 7);
+                uint8_t rotate     = bit_range(insn, 8, 11);
+
+                operand = std::rotr(immediate, rotate * 2);
             }
-            }*/
 
-        data = Undefined{};
+            data = PsrTransfer{ .operand = operand,
+                                .spsr    = get_bit(insn, 22),
+                                .type    = (get_bit(insn, 16)
+                                              ? PsrTransfer::Type::Msr
+                                              : PsrTransfer::Type::Msr_flg),
+                                .imm     = imm };
+        } else {
+            std::variant<Shift, uint32_t> operand;
 
-        // Software Interrupt
-        // What to do here?
+            if (imm) {
+                uint32_t immediate = bit_range(insn, 0, 7);
+                uint8_t rotate     = bit_range(insn, 8, 11);
+
+                operand = std::rotr(immediate, rotate * 2);
+
+            } else {
+                uint8_t rm = bit_range(insn, 0, 3);
+                bool reg   = get_bit(insn, 4);
+                ShiftType shift_type =
+                  static_cast<ShiftType>(bit_range(insn, 5, 6));
+                uint8_t sh_operand = bit_range(insn, (reg ? 8 : 7), 11);
+
+                operand = Shift{ .rm   = rm,
+                                 .data = ShiftData{ .type      = shift_type,
+                                                    .immediate = !reg,
+                                                    .operand   = sh_operand } };
+            }
+
+            data = DataProcessing{ .operand = operand,
+                                   .rd      = rd,
+                                   .rn      = rn,
+                                   .set     = set,
+                                   .opcode  = opcode };
+        }
+
+        // Software interrupt
     } else if ((insn & 0x0F000000) == 0x0F000000) {
 
         data = SoftwareInterrupt{};
 
         // Coprocessor data transfer
     } else if ((insn & 0x0E000000) == 0x0C000000) {
-        uint8_t offset = get_bit_range(insn, 0, 7);
-        uint8_t cpn    = get_bit_range(insn, 8, 11);
-        uint8_t crd    = get_bit_range(insn, 12, 15);
-        uint8_t rn     = get_bit_range(insn, 16, 19);
-        bool load      = get_nth_bit(insn, 20);
-        bool write     = get_nth_bit(insn, 21);
-        bool len       = get_nth_bit(insn, 22);
-        bool up        = get_nth_bit(insn, 23);
-        bool pre       = get_nth_bit(insn, 24);
+        uint8_t offset = bit_range(insn, 0, 7);
+        uint8_t cpn    = bit_range(insn, 8, 11);
+        uint8_t crd    = bit_range(insn, 12, 15);
+        uint8_t rn     = bit_range(insn, 16, 19);
+        bool load      = get_bit(insn, 20);
+        bool write     = get_bit(insn, 21);
+        bool len       = get_bit(insn, 22);
+        bool up        = get_bit(insn, 23);
+        bool pre       = get_bit(insn, 24);
 
         data = CoprocessorDataTransfer{ .offset = offset,
                                         .cpn    = cpn,
@@ -176,12 +241,12 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Coprocessor data operation
     } else if ((insn & 0x0F000010) == 0x0E000000) {
-        uint8_t crm    = get_bit_range(insn, 0, 4);
-        uint8_t cp     = get_bit_range(insn, 5, 7);
-        uint8_t cpn    = get_bit_range(insn, 8, 11);
-        uint8_t crd    = get_bit_range(insn, 12, 15);
-        uint8_t crn    = get_bit_range(insn, 16, 19);
-        uint8_t cp_opc = get_bit_range(insn, 20, 23);
+        uint8_t crm    = bit_range(insn, 0, 4);
+        uint8_t cp     = bit_range(insn, 5, 7);
+        uint8_t cpn    = bit_range(insn, 8, 11);
+        uint8_t crd    = bit_range(insn, 12, 15);
+        uint8_t crn    = bit_range(insn, 16, 19);
+        uint8_t cp_opc = bit_range(insn, 20, 23);
 
         data = CoprocessorDataOperation{ .crm    = crm,
                                          .cp     = cp,
@@ -192,13 +257,13 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Coprocessor register transfer
     } else if ((insn & 0x0F000010) == 0x0E000010) {
-        uint8_t crm    = get_bit_range(insn, 0, 4);
-        uint8_t cp     = get_bit_range(insn, 5, 7);
-        uint8_t cpn    = get_bit_range(insn, 8, 11);
-        uint8_t rd     = get_bit_range(insn, 12, 15);
-        uint8_t crn    = get_bit_range(insn, 16, 19);
-        bool load      = get_nth_bit(insn, 20);
-        uint8_t cp_opc = get_bit_range(insn, 21, 23);
+        uint8_t crm    = bit_range(insn, 0, 4);
+        uint8_t cp     = bit_range(insn, 5, 7);
+        uint8_t cpn    = bit_range(insn, 8, 11);
+        uint8_t rd     = bit_range(insn, 12, 15);
+        uint8_t crn    = bit_range(insn, 16, 19);
+        bool load      = get_bit(insn, 20);
+        uint8_t cp_opc = bit_range(insn, 21, 23);
 
         data = CoprocessorRegisterTransfer{ .crm    = crm,
                                             .cp     = cp,
@@ -318,6 +383,81 @@ ArmInstruction::disassemble() {
               data.rn,
               (data.pre ? expression : ""),
               (data.pre ? (data.write ? "!" : "") : expression));
+        },
+        [this](BlockDataTransfer& data) {
+            std::string regs;
+
+            for (uint8_t i = 0; i < 16; i++) {
+                if (get_bit(data.regs, i))
+                    fmt::format_to(std::back_inserter(regs), "R{:d},", i);
+            };
+
+            regs.pop_back();
+
+            return fmt::format("{}{}{}{} R{:d}{},{{{}}}{}",
+                               (data.load ? "LDM" : "STM"),
+                               condition,
+                               (data.up ? 'I' : 'D'),
+                               (data.pre ? 'B' : 'A'),
+                               data.rn,
+                               (data.write ? "!" : ""),
+                               regs,
+                               (data.s ? "^" : ""));
+        },
+        [this](PsrTransfer& data) {
+            if (data.type == PsrTransfer::Type::Mrs) {
+                return fmt::format("MRS{} R{:d},{}",
+                                   condition,
+                                   data.operand,
+                                   (data.spsr ? "SPSR_all" : "CPSR_all"));
+            } else {
+                return fmt::format(
+                  "MSR{} {}_{},{}{}",
+                  condition,
+                  (data.spsr ? "SPSR" : "CPSR"),
+                  (data.type == PsrTransfer::Type::Msr_flg ? "flg" : "all"),
+                  (data.imm ? '#' : 'R'),
+                  data.operand);
+            }
+        },
+        [this](DataProcessing& data) {
+            std::string op_2;
+
+            if (const uint32_t* operand =
+                  std::get_if<uint32_t>(&data.operand)) {
+                op_2 = fmt::format("#{:d}", *operand);
+            } else if (const Shift* shift = std::get_if<Shift>(&data.operand)) {
+                op_2 = fmt::format("R{:d},{} {}{:d}",
+                                   shift->rm,
+                                   shift->data.type,
+                                   (shift->data.immediate ? '#' : 'R'),
+                                   shift->data.operand);
+            }
+
+            switch (data.opcode) {
+                case OpCode::MOV:
+                case OpCode::MVN:
+                    return fmt::format("{}{}{} R{:d},{}",
+                                       data.opcode,
+                                       condition,
+                                       (data.set ? "S" : ""),
+                                       data.rd,
+                                       op_2);
+                case OpCode::TST:
+                case OpCode::TEQ:
+                case OpCode::CMP:
+                case OpCode::CMN:
+                    return fmt::format(
+                      "{}{} R{:d},{}", data.opcode, condition, data.rn, op_2);
+                default:
+                    return fmt::format("{}{}{} R{:d},R{:d},{}",
+                                       data.opcode,
+                                       condition,
+                                       (data.set ? "S" : ""),
+                                       data.rd,
+                                       data.rn,
+                                       op_2);
+            }
         },
         [this](SoftwareInterrupt) { return fmt::format("SWI{}", condition); },
         [this](CoprocessorDataTransfer& data) {
