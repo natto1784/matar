@@ -116,27 +116,29 @@ Cpu::chg_mode(const Mode to) {
 }
 
 void
-Cpu::exec_arm(const ArmInstruction instruction) {
-    auto cond = instruction.get_condition();
-    auto data = instruction.get_data();
+Cpu::exec_arm(const arm::ArmInstruction instruction) {
+    auto cond = instruction.condition;
+    auto data = instruction.data;
 
     if (!cpsr.condition(cond)) {
         return;
     }
 
     auto pc_error = [](uint8_t r) {
-        if (r == 15)
+        if (r == PC_INDEX)
             log_error("Using PC (R15) as operand register");
     };
 
     auto pc_warn = [](uint8_t r) {
-        if (r == 15)
+        if (r == PC_INDEX)
             log_warn("Using PC (R15) as operand register");
     };
 
+    using namespace arm;
+
     std::visit(
       overloaded{
-        [this, pc_warn](ArmInstruction::BranchAndExchange& data) {
+        [this, pc_warn](BranchAndExchange& data) {
             State state = static_cast<State>(data.rn & 1);
 
             pc_warn(data.rn);
@@ -156,7 +158,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
             // pc is affected so flush the pipeline
             is_flushed = true;
         },
-        [this](ArmInstruction::Branch& data) {
+        [this](Branch& data) {
             if (data.link)
                 gpr[14] = pc - ARM_INSTRUCTION_SIZE;
 
@@ -168,7 +170,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
             // pc is affected so flush the pipeline
             is_flushed = true;
         },
-        [this, pc_error](ArmInstruction::Multiply& data) {
+        [this, pc_error](Multiply& data) {
             if (data.rd == data.rm)
                 log_error("rd and rm are not distinct in {}",
                           typeid(data).name());
@@ -186,7 +188,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
                 cpsr.set_c(0);
             }
         },
-        [this, pc_error](ArmInstruction::MultiplyLong& data) {
+        [this, pc_error](MultiplyLong& data) {
             if (data.rdhi == data.rdlo || data.rdhi == data.rm ||
                 data.rdlo == data.rm)
                 log_error("rdhi, rdlo and rm are not distinct in {}",
@@ -226,8 +228,8 @@ Cpu::exec_arm(const ArmInstruction instruction) {
                 cpsr.set_v(0);
             }
         },
-        [](ArmInstruction::Undefined) { log_warn("Undefined instruction"); },
-        [this, pc_error](ArmInstruction::SingleDataSwap& data) {
+        [](Undefined) { log_warn("Undefined instruction"); },
+        [this, pc_error](SingleDataSwap& data) {
             pc_error(data.rm);
             pc_error(data.rn);
             pc_error(data.rd);
@@ -240,7 +242,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
                 bus->write_word(gpr[data.rn], gpr[data.rm]);
             }
         },
-        [this, pc_warn, pc_error](ArmInstruction::SingleDataTransfer& data) {
+        [this, pc_warn, pc_error](SingleDataTransfer& data) {
             uint32_t offset  = 0;
             uint32_t address = gpr[data.rn];
 
@@ -316,7 +318,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
             if (data.rd == PC_INDEX && data.load)
                 is_flushed = true;
         },
-        [this, pc_warn, pc_error](ArmInstruction::HalfwordTransfer& data) {
+        [this, pc_warn, pc_error](HalfwordTransfer& data) {
             uint32_t address = gpr[data.rn];
 
             if (!data.pre && data.write)
@@ -345,15 +347,16 @@ Cpu::exec_arm(const ArmInstruction instruction) {
                         gpr[data.rd] = bus->read_halfword(address);
 
                         // sign extend the halfword
-                        if (get_bit(gpr[data.rd], PC_INDEX))
-                            gpr[data.rd] |= 0xFFFF0000;
+                        gpr[data.rd] =
+                          (static_cast<int32_t>(gpr[data.rd]) << 16) >> 16;
+
                         // byte
                     } else {
                         gpr[data.rd] = bus->read_byte(address);
 
                         // sign extend the byte
-                        if (get_bit(gpr[data.rd], 7))
-                            gpr[data.rd] |= 0xFFFFFF00;
+                        gpr[data.rd] =
+                          (static_cast<int32_t>(gpr[data.rd]) << 24) >> 24;
                     }
                     // unsigned halfword
                 } else if (data.half) {
@@ -379,7 +382,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
             if (data.rd == PC_INDEX && data.load)
                 is_flushed = true;
         },
-        [this, pc_error](ArmInstruction::BlockDataTransfer& data) {
+        [this, pc_error](BlockDataTransfer& data) {
             uint32_t address  = gpr[data.rn];
             Mode mode         = cpsr.mode();
             uint8_t alignment = 4; // word
@@ -449,7 +452,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
             // load back the original mode registers
             chg_mode(mode);
         },
-        [this, pc_error](ArmInstruction::PsrTransfer& data) {
+        [this, pc_error](PsrTransfer& data) {
             if (data.spsr && cpsr.mode() == Mode::User) {
                 log_error("Accessing SPSR in User mode in {}",
                           typeid(data).name());
@@ -458,18 +461,18 @@ Cpu::exec_arm(const ArmInstruction instruction) {
             Psr& psr = data.spsr ? spsr : cpsr;
 
             switch (data.type) {
-                case ArmInstruction::PsrTransfer::Type::Mrs:
+                case PsrTransfer::Type::Mrs:
                     pc_error(data.operand);
                     gpr[data.operand] = psr.raw();
                     break;
-                case ArmInstruction::PsrTransfer::Type::Msr:
+                case PsrTransfer::Type::Msr:
                     pc_error(data.operand);
 
                     if (cpsr.mode() != Mode::User) {
                         psr.set_all(gpr[data.operand]);
                         break;
                     }
-                case ArmInstruction::PsrTransfer::Type::Msr_flg:
+                case PsrTransfer::Type::Msr_flg:
                     psr.set_n(get_bit(data.operand, 31));
                     psr.set_z(get_bit(data.operand, 30));
                     psr.set_c(get_bit(data.operand, 29));
@@ -477,7 +480,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
                     break;
             }
         },
-        [this, pc_error](ArmInstruction::DataProcessing& data) {
+        [this, pc_error](DataProcessing& data) {
             uint32_t op_1 = gpr[data.rn];
             uint32_t op_2 = 0;
 
@@ -671,7 +674,7 @@ Cpu::exec_arm(const ArmInstruction instruction) {
                     is_flushed = true;
             }
         },
-        [this](ArmInstruction::SoftwareInterrupt) {
+        [this](SoftwareInterrupt) {
             chg_mode(Mode::Supervisor);
             pc   = 0x08;
             spsr = cpsr;
@@ -690,7 +693,7 @@ Cpu::step() {
     if (cpsr.state() == State::Arm) {
         debug(cur_pc);
         uint32_t x = bus->read_word(cur_pc);
-        ArmInstruction instruction(x);
+        arm::ArmInstruction instruction(x);
         log_info("{:#034b}", x);
 
         exec_arm(instruction);

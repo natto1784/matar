@@ -8,17 +8,23 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
- #       "i686-linux"
       ];
+
       eachSystem = with nixpkgs.lib; f: foldAttrs mergeAttrs { }
         (map (s: mapAttrs (_: v: { ${s} = v; }) (f s)) systems);
     in
     eachSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+
+        # aliases
         llvm = pkgs.llvmPackages_16;
         stdenv = llvm.libcxxStdenv;
 
+        # packages
+        catch2_v3 = pkgs.callPackage ./nix/catch2.nix { inherit stdenv; };
+
+        #dependencies
         nativeBuildInputs = with pkgs; [
           meson
           ninja
@@ -26,6 +32,7 @@
           # libraries
           pkg-config
           fmt.dev
+          catch2_v3.dev
         ];
       in
       rec {
@@ -51,6 +58,8 @@
           matar = pkgs.mkShell.override { inherit stdenv; } {
             name = "matar";
             packages = nativeBuildInputs ++ (with pkgs; [
+              llvm.libcxx
+
               # dev tools
               clang-tools_16
             ]);

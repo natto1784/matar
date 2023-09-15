@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <ostream>
 #include <unistd.h>
 #include <vector>
 
@@ -79,6 +80,9 @@ main(int argc, const char* argv[]) {
         std::cerr << "Exception: " << e.what() << std::endl;
         return 1;
     }
+
+    std::flush(std::cout);
+    std::flush(std::cerr);
 
     {
         Memory memory(std::move(bios), std::move(rom));

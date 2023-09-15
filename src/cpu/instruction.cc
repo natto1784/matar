@@ -336,7 +336,8 @@ ArmInstruction::disassemble() {
                 if (*offset == 0) {
                     expression = "";
                 } else {
-                    expression = fmt::format(",#{:d}", *offset);
+                    expression =
+                      fmt::format(",{}#{:d}", (data.up ? '+' : '-'), *offset);
                 }
             } else if (const Shift* shift = std::get_if<Shift>(&data.offset)) {
                 // Shifts are always immediate in single data transfer
@@ -365,7 +366,8 @@ ArmInstruction::disassemble() {
                 if (data.offset == 0) {
                     expression = "";
                 } else {
-                    expression = fmt::format(",#{:d}", data.offset);
+                    expression = fmt::format(
+                      ",{}#{:d}", (data.up ? '+' : '-'), data.offset);
                 }
             } else {
                 expression =
