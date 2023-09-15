@@ -3,6 +3,8 @@
 #include "util/bits.hh"
 #include <iterator>
 
+using namespace arm;
+
 ArmInstruction::ArmInstruction(uint32_t insn)
   : condition(static_cast<Condition>(bit_range(insn, 28, 31))) {
     // Branch and exhcange
@@ -17,10 +19,7 @@ ArmInstruction::ArmInstruction(uint32_t insn)
         uint32_t offset = bit_range(insn, 0, 23);
 
         // lsh 2 and sign extend the 26 bit offset to 32 bits
-        offset <<= 2;
-
-        if (get_bit(offset, 25))
-            offset |= 0xFC000000;
+        offset = (static_cast<int32_t>(offset) << 8) >> 6;
 
         offset += 2 * ARM_INSTRUCTION_SIZE;
 
@@ -72,7 +71,6 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Single data transfer
     } else if ((insn & 0x0C000000) == 0x04000000) {
-
         std::variant<uint16_t, Shift> offset;
         uint8_t rd = bit_range(insn, 12, 15);
         uint8_t rn = bit_range(insn, 16, 19);
@@ -84,15 +82,16 @@ ArmInstruction::ArmInstruction(uint32_t insn)
         bool imm   = get_bit(insn, 25);
 
         if (imm) {
+            // register specified shift amounts not available in single data
+            // transfer (see Undefined)
             uint8_t rm = bit_range(insn, 0, 3);
-            bool reg   = get_bit(insn, 4);
             ShiftType shift_type =
               static_cast<ShiftType>(bit_range(insn, 5, 6));
-            uint8_t operand = bit_range(insn, (reg ? 8 : 7), 11);
+            uint8_t operand = bit_range(insn, 7, 11);
 
             offset = Shift{ .rm   = rm,
                             .data = ShiftData{ .type      = shift_type,
-                                               .immediate = !reg,
+                                               .immediate = true,
                                                .operand   = operand } };
         } else {
             offset = static_cast<uint16_t>(bit_range(insn, 0, 11));
@@ -289,7 +288,7 @@ ArmInstruction::disassemble() {
         },
         [this](Branch& data) {
             return fmt::format(
-              "B{}{} {:#08X}", (data.link ? "L" : ""), condition, data.offset);
+              "B{}{} 0x{:06X}", (data.link ? "L" : ""), condition, data.offset);
         },
         [this](Multiply& data) {
             if (data.acc) {
@@ -340,11 +339,11 @@ ArmInstruction::disassemble() {
                     expression = fmt::format(",#{:d}", *offset);
                 }
             } else if (const Shift* shift = std::get_if<Shift>(&data.offset)) {
-                expression = fmt::format(",{}R{:d},{} {}{:d}",
+                // Shifts are always immediate in single data transfer
+                expression = fmt::format(",{}R{:d},{} #{:d}",
                                          (data.up ? '+' : '-'),
                                          shift->rm,
                                          shift->data.type,
-                                         (shift->data.immediate ? '#' : 'R'),
                                          shift->data.operand);
             }
 
