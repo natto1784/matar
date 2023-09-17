@@ -64,7 +64,6 @@ struct HalfwordTransfer {
     uint8_t rn;
     bool load;
     bool write;
-    bool byte;
     bool imm;
     bool up;
     bool pre;
@@ -152,11 +151,11 @@ using InstructionData = std::variant<BranchAndExchange,
                                      Undefined,
                                      SoftwareInterrupt>;
 
-struct ArmInstruction {
+struct Instruction {
     Condition condition;
     InstructionData data;
 
-    ArmInstruction(uint32_t insn);
+    Instruction(uint32_t insn);
     std::string disassemble();
 };
 }

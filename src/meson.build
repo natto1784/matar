@@ -11,8 +11,7 @@ lib = library(
   lib_sources,
   dependencies: [fmt],
   include_directories: inc,
-  install: true,
-  cpp_args: '-DFMT_HEADER_ONLY'
+  install: true
 )
 
 import('pkgconfig').generate(lib)

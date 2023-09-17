@@ -15,14 +15,17 @@ jobs:
             auto-optimise-store = true
             experimental-features = nix-command flakes
 
-      - name: meson build
+      - name: setup
         run: nix develop -c meson setup $BUILDDIR
 
-      - name: clang-format check
+      - name: fmt
         run: nix develop -c ninja clang-format-check -C $BUILDDIR
 
-      - name: clang-tidy check
+      - name: lint
         run: nix develop -c ninja clang-tidy -C $BUILDDIR
 
-      - name: ninja compile
+      - name: tests
+        run: nix develop -c ninja test -C $BUILDDIR
+
+      - name: build
         run: nix develop -c ninja -C $BUILDDIR

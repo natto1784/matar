@@ -35,7 +35,7 @@ class Cpu {
     bool is_flushed;
 
     void chg_mode(const Mode to);
-    void exec_arm(const arm::ArmInstruction instruction);
+    void exec_arm(const arm::Instruction instruction);
 
     struct {
         std::array<uint32_t, GPR_COUNT - GPR_FIQ_FIRST - 1> fiq;

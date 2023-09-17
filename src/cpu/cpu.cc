@@ -116,7 +116,7 @@ Cpu::chg_mode(const Mode to) {
 }
 
 void
-Cpu::exec_arm(const arm::ArmInstruction instruction) {
+Cpu::exec_arm(const arm::Instruction instruction) {
     auto cond = instruction.condition;
     auto data = instruction.data;
 
@@ -470,8 +470,8 @@ Cpu::exec_arm(const arm::ArmInstruction instruction) {
 
                     if (cpsr.mode() != Mode::User) {
                         psr.set_all(gpr[data.operand]);
-                        break;
                     }
+                    break;
                 case PsrTransfer::Type::Msr_flg:
                     psr.set_n(get_bit(data.operand, 31));
                     psr.set_z(get_bit(data.operand, 30));
@@ -648,7 +648,7 @@ Cpu::exec_arm(const arm::ArmInstruction instruction) {
             debug(zero);
             debug(negative);
 
-            auto set_conditions = [=]() {
+            auto set_conditions = [this, carry, overflow, negative, zero]() {
                 cpsr.set_c(carry);
                 cpsr.set_v(overflow);
                 cpsr.set_n(negative);
@@ -693,7 +693,7 @@ Cpu::step() {
     if (cpsr.state() == State::Arm) {
         debug(cur_pc);
         uint32_t x = bus->read_word(cur_pc);
-        arm::ArmInstruction instruction(x);
+        arm::Instruction instruction(x);
         log_info("{:#034b}", x);
 
         exec_arm(instruction);

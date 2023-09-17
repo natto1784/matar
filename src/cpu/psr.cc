@@ -92,4 +92,6 @@ Psr::condition(Condition cond) const {
         case Condition::AL:
             return true;
     }
+
+    return false;
 }

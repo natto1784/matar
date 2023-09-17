@@ -69,6 +69,8 @@ operator<<(std::ostream& os, const OpCode opcode) {
 
 uint32_t
 eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
+    uint32_t eval = 0;
+
     switch (shift_type) {
         case ShiftType::LSL:
 
@@ -77,7 +79,8 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
             else if (amount > 32)
                 carry = 0;
 
-            return value << amount;
+            eval = value << amount;
+            break;
         case ShiftType::LSR:
 
             if (amount > 0 && amount <= 32)
@@ -87,7 +90,8 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
             else
                 carry = get_bit(value, 31);
 
-            return value >> amount;
+            eval = value >> amount;
+            break;
         case ShiftType::ASR:
             if (amount > 0 && amount <= 32)
                 carry = get_bit(value, amount - 1);
@@ -95,17 +99,21 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
                 carry = get_bit(value, 31);
 
             return static_cast<int32_t>(value) >> amount;
+            break;
         case ShiftType::ROR:
             if (amount == 0) {
                 bool old_carry = carry;
 
                 carry = get_bit(value, 0);
-                return (value >> 1) | (old_carry << 31);
+                eval  = (value >> 1) | (old_carry << 31);
             } else {
                 carry = get_bit(value, (amount % 32 + 31) % 32);
-                return std::rotr(value, amount);
+                eval  = std::rotr(value, amount);
             }
+            break;
     }
+
+    return eval;
 }
 
 std::ostream&

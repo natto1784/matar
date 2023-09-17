@@ -58,7 +58,7 @@ Memory::read(size_t address) const {
         return rom[address - ROM_2_START];
     } else {
         log_error("Invalid memory region accessed");
-        return 0;
+        return 0xFF;
     }
 }
 

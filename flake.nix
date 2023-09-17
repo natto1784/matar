@@ -1,8 +1,10 @@
 {
   description = "matar";
+
   inputs = {
-    nixpkgs.url = github:nixos/nixpkgs/nixpkgs-unstable;
+    nixpkgs.url = github:nixos/nixpkgs/master;
   };
+
   outputs = { self, nixpkgs }:
     let
       systems = [
@@ -21,22 +23,30 @@
         llvm = pkgs.llvmPackages_16;
         stdenv = llvm.libcxxStdenv;
 
-        # packages
-        catch2_v3 = pkgs.callPackage ./nix/catch2.nix { inherit stdenv; };
 
+        # TODO: this is ugly
         #dependencies
-        nativeBuildInputs = with pkgs; [
-          meson
-          ninja
+        nativeBuildInputs = with pkgs;
+          [
+            meson
+            ninja
 
-          # libraries
-          pkg-config
-          fmt.dev
-          catch2_v3.dev
-        ];
+            # libraries
+            pkg-config
+            cmake
+
+            ((pkgs.fmt.override {
+              inherit stdenv;
+              enableShared = false;
+            }).overrideAttrs (oa: {
+              cmakeFlags = oa.cmakeFlags ++ [ "-DFMT_TEST=off" ];
+            })).dev
+            (catch2_3.override { inherit stdenv; }).out
+          ];
       in
       rec {
         packages = rec {
+          inherit (llvm) libcxxabi;
           matar = stdenv.mkDerivation rec {
             name = "matar";
             version = "0.1";
@@ -44,6 +54,7 @@
               ".hh"
               ".cc"
               ".build"
+              "meson_options.txt"
             ];
             outputs = [ "out" "dev" ];
 
@@ -58,9 +69,7 @@
           matar = pkgs.mkShell.override { inherit stdenv; } {
             name = "matar";
             packages = nativeBuildInputs ++ (with pkgs; [
-              llvm.libcxx
-
-              # dev tools
+              # lsp
               clang-tools_16
             ]);
           };

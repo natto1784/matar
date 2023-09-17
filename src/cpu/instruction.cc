@@ -5,7 +5,7 @@
 
 using namespace arm;
 
-ArmInstruction::ArmInstruction(uint32_t insn)
+Instruction::Instruction(uint32_t insn)
   : condition(static_cast<Condition>(bit_range(insn, 28, 31))) {
     // Branch and exhcange
     if ((insn & 0x0FFFFFF0) == 0x012FFF10) {
@@ -164,10 +164,9 @@ ArmInstruction::ArmInstruction(uint32_t insn)
                                 .type    = PsrTransfer::Type::Mrs,
                                 .imm     = 0 };
         } else if ((opcode == OpCode::TEQ || opcode == OpCode::CMN) && !set) {
-            bool imm         = get_bit(insn, 25);
             uint32_t operand = 0;
 
-            if (imm) {
+            if (!imm) {
                 operand = bit_range(insn, 0, 3);
             } else {
                 uint32_t immediate = bit_range(insn, 0, 7);
@@ -185,12 +184,11 @@ ArmInstruction::ArmInstruction(uint32_t insn)
         } else {
             std::variant<Shift, uint32_t> operand;
 
-            if (imm) {
+            if (!imm) {
                 uint32_t immediate = bit_range(insn, 0, 7);
                 uint8_t rotate     = bit_range(insn, 8, 11);
 
                 operand = std::rotr(immediate, rotate * 2);
-
             } else {
                 uint8_t rm = bit_range(insn, 0, 3);
                 bool reg   = get_bit(insn, 4);
@@ -240,7 +238,7 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Coprocessor data operation
     } else if ((insn & 0x0F000010) == 0x0E000000) {
-        uint8_t crm    = bit_range(insn, 0, 4);
+        uint8_t crm    = bit_range(insn, 0, 3);
         uint8_t cp     = bit_range(insn, 5, 7);
         uint8_t cpn    = bit_range(insn, 8, 11);
         uint8_t crd    = bit_range(insn, 12, 15);
@@ -256,7 +254,7 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 
         // Coprocessor register transfer
     } else if ((insn & 0x0F000010) == 0x0E000010) {
-        uint8_t crm    = bit_range(insn, 0, 4);
+        uint8_t crm    = bit_range(insn, 0, 3);
         uint8_t cp     = bit_range(insn, 5, 7);
         uint8_t cpn    = bit_range(insn, 8, 11);
         uint8_t rd     = bit_range(insn, 12, 15);
@@ -277,8 +275,7 @@ ArmInstruction::ArmInstruction(uint32_t insn)
 }
 
 std::string
-ArmInstruction::disassemble() {
-    static const std::string undefined = "UNDEFINED";
+Instruction::disassemble() {
     // goddamn this is gore
     // TODO: make this less ugly
     return std::visit(
@@ -319,7 +316,7 @@ ArmInstruction::disassemble() {
                                data.rm,
                                data.rs);
         },
-        [](Undefined) { return undefined; },
+        [](Undefined) { return std::string("UND"); },
         [this](SingleDataSwap& data) {
             return fmt::format("SWP{}{} R{:d},R{:d},[R{:d}]",
                                condition,
@@ -485,7 +482,7 @@ ArmInstruction::disassemble() {
                                data.cp);
         },
         [this](CoprocessorRegisterTransfer& data) {
-            return fmt::format("{}{} p{},{},c{},c{},c{},{}",
+            return fmt::format("{}{} p{},{},R{},c{},c{},{}",
                                (data.load ? "MRC" : "MCR"),
                                condition,
                                data.cpn,
@@ -495,6 +492,6 @@ ArmInstruction::disassemble() {
                                data.crm,
                                data.cp);
         },
-        [](auto) { return undefined; } },
+        [](auto) { return std::string("unknown instruction"); } },
       data);
 }
