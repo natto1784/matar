@@ -4,6 +4,8 @@
 #include <string>
 
 struct Header {
+    static constexpr uint8_t HEADER_SIZE = 192;
+
     enum class UniqueCode {
         Old,        // old games
         New,        // new games

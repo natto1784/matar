@@ -1,4 +1,4 @@
-#include "cpu/instruction.hh"
+#include "instruction.hh"
 #include "cpu/utility.hh"
 #include "util/bits.hh"
 #include <iterator>
@@ -21,7 +21,7 @@ Instruction::Instruction(uint32_t insn)
         // lsh 2 and sign extend the 26 bit offset to 32 bits
         offset = (static_cast<int32_t>(offset) << 8) >> 6;
 
-        offset += 2 * ARM_INSTRUCTION_SIZE;
+        offset += 2 * INSTRUCTION_SIZE;
 
         data = Branch{ .link = link, .offset = offset };
 
@@ -46,7 +46,7 @@ Instruction::Instruction(uint32_t insn)
         uint8_t rdhi = bit_range(insn, 16, 19);
         bool set     = get_bit(insn, 20);
         bool acc     = get_bit(insn, 21);
-        bool uns     = get_bit(insn, 22);
+        bool uns     = !get_bit(insn, 22);
 
         data = MultiplyLong{ .rm   = rm,
                              .rs   = rs,
@@ -166,13 +166,13 @@ Instruction::Instruction(uint32_t insn)
         } else if ((opcode == OpCode::TEQ || opcode == OpCode::CMN) && !set) {
             uint32_t operand = 0;
 
-            if (!imm) {
-                operand = bit_range(insn, 0, 3);
-            } else {
+            if (imm) {
                 uint32_t immediate = bit_range(insn, 0, 7);
                 uint8_t rotate     = bit_range(insn, 8, 11);
 
                 operand = std::rotr(immediate, rotate * 2);
+            } else {
+                operand = bit_range(insn, 0, 3);
             }
 
             data = PsrTransfer{ .operand = operand,
@@ -184,7 +184,7 @@ Instruction::Instruction(uint32_t insn)
         } else {
             std::variant<Shift, uint32_t> operand;
 
-            if (!imm) {
+            if (imm) {
                 uint32_t immediate = bit_range(insn, 0, 7);
                 uint8_t rotate     = bit_range(insn, 8, 11);
 

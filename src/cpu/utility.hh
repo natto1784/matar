@@ -3,7 +3,6 @@
 #include <fmt/ostream.h>
 #include <ostream>
 
-static constexpr size_t ARM_INSTRUCTION_SIZE   = 4;
 static constexpr size_t THUMB_INSTRUCTION_SIZE = 2;
 
 enum class Mode {

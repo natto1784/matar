@@ -5,7 +5,7 @@
 
 class Bus {
   public:
-    Bus(Memory& memory);
+    Bus(const Memory& memory);
 
     uint8_t read_byte(size_t address);
     void write_byte(size_t address, uint8_t byte);

@@ -1,3 +1,1 @@
-tests_sources += files(
-  'instruction.cc'
-)
+subdir('arm')

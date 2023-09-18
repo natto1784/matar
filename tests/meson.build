@@ -2,6 +2,8 @@ tests_deps = [
   lib
 ]
 
+src = include_directories('../src')
+
 tests_sources = files()
 
 subdir('cpu')
@@ -12,7 +14,7 @@ catch2_tests = executable(
   tests_sources,
   dependencies: catch2,
   link_with: tests_deps,
-  include_directories: inc,
+  include_directories: [inc, src],
   build_by_default: false
 )
 

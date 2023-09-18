@@ -4,14 +4,14 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 class Memory {
   public:
     static constexpr size_t BIOS_SIZE = 1024 * 16;
 
-    Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
-           std::vector<uint8_t>&& rom) noexcept;
+    Memory(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom);
 
     uint8_t read(size_t address) const;
     void write(size_t address, uint8_t byte);
@@ -58,6 +58,7 @@ class Memory {
 
 #undef MEMORY_REGION
 
+    std::unordered_map<size_t, uint8_t> invalid_mem;
     std::vector<uint8_t> rom;
     Header header;
     void parse_header();

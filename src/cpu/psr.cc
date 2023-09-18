@@ -1,4 +1,4 @@
-#include "cpu/psr.hh"
+#include "psr.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
 

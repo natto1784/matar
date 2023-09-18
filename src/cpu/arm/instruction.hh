@@ -10,6 +10,8 @@ template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
 namespace arm {
+static constexpr size_t INSTRUCTION_SIZE = 4;
+
 struct BranchAndExchange {
     uint8_t rn;
 };
@@ -156,6 +158,10 @@ struct Instruction {
     InstructionData data;
 
     Instruction(uint32_t insn);
+    Instruction(Condition condition, InstructionData data) noexcept
+      : condition(condition)
+      , data(data){};
+
     std::string disassemble();
 };
 }

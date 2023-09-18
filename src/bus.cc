@@ -1,7 +1,7 @@
 #include "bus.hh"
 #include <memory>
 
-Bus::Bus(Memory& memory)
+Bus::Bus(const Memory& memory)
   : memory(std::make_shared<Memory>(memory)) {}
 
 uint8_t
@@ -31,5 +31,5 @@ Bus::read_word(size_t address) {
 
 void
 Bus::write_word(size_t address, uint32_t word) {
-    memory->write_halfword(address, word);
+    memory->write_word(address, word);
 }

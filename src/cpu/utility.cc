@@ -1,4 +1,4 @@
-#include "cpu/utility.hh"
+#include "utility.hh"
 #include "util/bits.hh"
 #include <bit>
 
@@ -102,13 +102,11 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
             break;
         case ShiftType::ROR:
             if (amount == 0) {
-                bool old_carry = carry;
-
+                eval  = (value >> 1) | (carry << 31);
                 carry = get_bit(value, 0);
-                eval  = (value >> 1) | (old_carry << 31);
             } else {
-                carry = get_bit(value, (amount % 32 + 31) % 32);
                 eval  = std::rotr(value, amount);
+                carry = get_bit(value, (amount % 32 + 31) % 32);
             }
             break;
     }
