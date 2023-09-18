@@ -4,11 +4,12 @@
 #include "util/log.hh"
 #include "util/utils.hh"
 #include <bitset>
+#include <stdexcept>
 
 using namespace logger;
 
 Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
-               std::vector<uint8_t>&& rom) noexcept
+               std::vector<uint8_t>&& rom)
   : bios(std::move(bios))
   , board_wram({ 0 })
   , chip_wram({ 0 })
@@ -116,18 +117,24 @@ Memory::read_word(size_t address) const {
 }
 
 void
-Memory::write_word(size_t address, uint32_t halfword) {
+Memory::write_word(size_t address, uint32_t word) {
     if (address & 0b11)
         log_warn("Writing to a non aligned word address");
 
-    write(address, halfword & 0xFF);
-    write(address + 1, halfword >> 8 & 0xFF);
-    write(address + 2, halfword >> 16 & 0xFF);
-    write(address + 3, halfword >> 24 & 0xFF);
+    write(address, word & 0xFF);
+    write(address + 1, word >> 8 & 0xFF);
+    write(address + 2, word >> 16 & 0xFF);
+    write(address + 3, word >> 24 & 0xFF);
 }
 
 void
 Memory::parse_header() {
+
+    if (rom.size() < 192) {
+        throw std::out_of_range(
+          "ROM is not large enough to even have a header");
+    }
+
     // entrypoint
     header.entrypoint =
       rom[0x00] | rom[0x01] << 8 | rom[0x02] << 16 | rom[0x03] << 24;

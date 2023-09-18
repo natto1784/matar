@@ -1,7 +1,7 @@
 #pragma once
 
+#include "arm/instruction.hh"
 #include "bus.hh"
-#include "instruction.hh"
 #include "psr.hh"
 
 #include <cstdint>
@@ -10,7 +10,7 @@ using std::size_t;
 
 class Cpu {
   public:
-    Cpu(Bus& bus);
+    Cpu(const Bus& bus);
     void step();
 
   private:
@@ -30,7 +30,9 @@ class Cpu {
     Psr spsr; // status program status register
 
     static constexpr uint8_t PC_INDEX = 15;
-    uint32_t& pc                      = gpr[PC_INDEX];
+    static_assert(PC_INDEX < GPR_COUNT);
+
+    uint32_t& pc = gpr[PC_INDEX];
 
     bool is_flushed;
 

@@ -2,7 +2,7 @@
 #include "cpu/utility.hh"
 #include <catch2/catch_test_macros.hpp>
 
-[[maybe_unused]] static constexpr auto TAG = "disassembler";
+#define TAG "disassembler"
 
 using namespace arm;
 
@@ -75,16 +75,16 @@ TEST_CASE("Multiply Long", TAG) {
     REQUIRE(mull->rdhi == 14);
     REQUIRE(mull->acc == false);
     REQUIRE(mull->set == true);
-    REQUIRE(mull->uns == false);
+    REQUIRE(mull->uns == true);
 
-    REQUIRE(instruction.disassemble() == "SMULLNES R7,R14,R2,R6");
+    REQUIRE(instruction.disassemble() == "UMULLNES R7,R14,R2,R6");
 
     mull->acc = true;
-    REQUIRE(instruction.disassemble() == "SMLALNES R7,R14,R2,R6");
+    REQUIRE(instruction.disassemble() == "UMLALNES R7,R14,R2,R6");
 
-    mull->uns = true;
+    mull->uns = false;
     mull->set = false;
-    REQUIRE(instruction.disassemble() == "UMLALNE R7,R14,R2,R6");
+    REQUIRE(instruction.disassemble() == "SMLALNE R7,R14,R2,R6");
 }
 
 TEST_CASE("Undefined", TAG) {
@@ -309,7 +309,7 @@ TEST_CASE("PSR Transfer", TAG) {
 }
 
 TEST_CASE("Data Processing", TAG) {
-    uint32_t raw = 0b11100010000111100111101101100001;
+    uint32_t raw = 0b11100000000111100111101101100001;
     Instruction instruction(raw);
     DataProcessing* alu = nullptr;
     Shift* shift        = nullptr;
@@ -465,3 +465,5 @@ TEST_CASE("Software Interrupt", TAG) {
     REQUIRE(instruction.condition == Condition::EQ);
     REQUIRE(instruction.disassemble() == "SWIEQ");
 }
+
+#undef TAG

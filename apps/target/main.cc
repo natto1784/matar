@@ -82,9 +82,9 @@ main(int argc, const char* argv[]) {
     }
 
     std::flush(std::cout);
-    std::flush(std::cerr);
+    std::flush(std::cout);
 
-    {
+    try {
         Memory memory(std::move(bios), std::move(rom));
         Bus bus(memory);
         Cpu cpu(bus);
@@ -92,7 +92,11 @@ main(int argc, const char* argv[]) {
             cpu.step();
             sleep(1);
         }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+        return 1;
     }
+
     return 0;
 }
 

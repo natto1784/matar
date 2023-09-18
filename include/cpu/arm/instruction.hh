@@ -156,6 +156,10 @@ struct Instruction {
     InstructionData data;
 
     Instruction(uint32_t insn);
+    Instruction(Condition condition, InstructionData data) noexcept
+      : condition(condition)
+      , data(data){};
+
     std::string disassemble();
 };
 }
