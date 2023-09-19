@@ -6,12 +6,12 @@ lib_sources = files(
 subdir('cpu')
 
 fmt = dependency('fmt', version : '>=10.1.0')
-lib = library(
+lib = static_library(
   meson.project_name(),
   lib_sources,
   dependencies: [fmt],
   include_directories: inc,
-  install: true
+  install: true,
 )
 
 import('pkgconfig').generate(lib)

@@ -6,9 +6,10 @@ using namespace logger;
 
 void
 CpuImpl::exec_arm(const arm::Instruction instruction) {
-    auto cond = instruction.condition;
-    auto data = instruction.data;
+    Condition cond            = instruction.condition;
+    arm::InstructionData data = instruction.data;
 
+    debug(cpsr.condition(cond));
     if (!cpsr.condition(cond)) {
         return;
     }
@@ -390,11 +391,6 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
 
             uint32_t result = 0;
 
-            bool overflow = cpsr.v();
-            bool carry    = cpsr.c();
-            bool negative = cpsr.n();
-            bool zero     = cpsr.z();
-
             if (const uint32_t* immediate =
                   std::get_if<uint32_t>(&data.operand)) {
                 op_2 = *immediate;
@@ -419,144 +415,96 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
                     op_1 += INSTRUCTION_SIZE;
             }
 
+            bool overflow = cpsr.v();
+            bool carry    = cpsr.c();
+
+            auto sub = [&carry, &overflow](uint32_t a, uint32_t b) -> uint32_t {
+                bool s1 = get_bit(a, 31);
+                bool s2 = get_bit(b, 31);
+
+                uint32_t result = a - b;
+
+                carry    = b <= a;
+                overflow = s1 != s2 && s2 == get_bit(result, 31);
+                return result;
+            };
+
+            auto add = [&carry, &overflow](
+                         uint32_t a, uint32_t b, bool c = 0) -> uint32_t {
+                bool s1 = get_bit(a, 31);
+                bool s2 = get_bit(b, 31);
+
+                // 33 bits
+                uint64_t result_ = a + b + c;
+                uint32_t result  = result_ & 0xFFFFFFFF;
+
+                carry    = get_bit(result_, 32);
+                overflow = s1 == s2 && s2 != get_bit(result, 31);
+                return result;
+            };
+
+            auto sbc = [&carry,
+                        &overflow](uint32_t a, uint32_t b, bool c) -> uint32_t {
+                bool s1 = get_bit(a, 31);
+                bool s2 = get_bit(b, 31);
+
+                uint64_t result_ = a - b + c - 1;
+                uint32_t result  = result_ & 0xFFFFFFFF;
+
+                carry    = get_bit(result_, 32);
+                overflow = s1 != s2 && s2 == get_bit(result, 31);
+                return result;
+            };
+
             switch (data.opcode) {
-                case OpCode::AND: {
+                case OpCode::AND:
+                case OpCode::TST:
                     result = op_1 & op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::EOR: {
-                    result = op_1 ^ op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::SUB: {
-                    bool s1  = get_bit(op_1, 31);
-                    bool s2  = get_bit(op_2, 31);
-                    result   = op_1 - op_2;
-                    negative = get_bit(result, 31);
-                    carry    = op_1 < op_2;
-                    overflow = s1 != s2 && s2 == negative;
-                } break;
-                case OpCode::RSB: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-                    result  = op_2 - op_1;
-
-                    negative = get_bit(result, 31);
-                    carry    = op_2 < op_1;
-                    overflow = s1 != s2 && s1 == negative;
-                } break;
-                case OpCode::ADD: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-
-                    // result_ is 33 bits
-                    uint64_t result_ = op_2 + op_1;
-                    result           = result_ & 0xFFFFFFFF;
-
-                    negative = get_bit(result, 31);
-                    carry    = get_bit(result_, 32);
-                    overflow = s1 == s2 && s1 != negative;
-                } break;
-                case OpCode::ADC: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-
-                    uint64_t result_ = op_2 + op_1 + carry;
-                    result           = result_ & 0xFFFFFFFF;
-
-                    negative = get_bit(result, 31);
-                    carry    = get_bit(result_, 32);
-                    overflow = s1 == s2 && s1 != negative;
-                } break;
-                case OpCode::SBC: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-
-                    uint64_t result_ = op_1 - op_2 + carry - 1;
-                    result           = result_ & 0xFFFFFFFF;
-
-                    negative = get_bit(result, 31);
-                    carry    = get_bit(result_, 32);
-                    overflow = s1 != s2 && s2 == negative;
-                } break;
-                case OpCode::RSC: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-
-                    uint64_t result_ = op_1 - op_2 + carry - 1;
-                    result           = result_ & 0xFFFFFFFF;
-
-                    negative = get_bit(result, 31);
-                    carry    = get_bit(result_, 32);
-                    overflow = s1 != s2 && s1 == negative;
-                } break;
-                case OpCode::TST: {
                     result = op_1 & op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::TEQ: {
+                    break;
+                case OpCode::EOR:
+                case OpCode::TEQ:
                     result = op_1 ^ op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::CMP: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-
-                    result = op_1 - op_2;
-
-                    negative = get_bit(result, 31);
-                    carry    = op_1 < op_2;
-                    overflow = s1 != s2 && s2 == negative;
-                } break;
-                case OpCode::CMN: {
-                    bool s1 = get_bit(op_1, 31);
-                    bool s2 = get_bit(op_2, 31);
-
-                    uint64_t result_ = op_2 + op_1;
-                    result           = result_ & 0xFFFFFFFF;
-
-                    negative = get_bit(result, 31);
-                    carry    = get_bit(result_, 32);
-                    overflow = s1 == s2 && s1 != negative;
-                } break;
-                case OpCode::ORR: {
+                    break;
+                case OpCode::SUB:
+                case OpCode::CMP:
+                    result = sub(op_1, op_2);
+                    break;
+                case OpCode::RSB:
+                    result = sub(op_2, op_1);
+                    break;
+                case OpCode::ADD:
+                case OpCode::CMN:
+                    result = add(op_1, op_2);
+                    break;
+                case OpCode::ADC:
+                    result = add(op_1, op_2, carry);
+                    break;
+                case OpCode::SBC:
+                    result = sbc(op_1, op_2, carry);
+                    break;
+                case OpCode::RSC:
+                    result = sbc(op_2, op_1, carry);
+                    break;
+                case OpCode::ORR:
                     result = op_1 | op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::MOV: {
+                    break;
+                case OpCode::MOV:
                     result = op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::BIC: {
+                    break;
+                case OpCode::BIC:
                     result = op_1 & ~op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
-                case OpCode::MVN: {
+                    break;
+                case OpCode::MVN:
                     result = ~op_2;
-
-                    negative = get_bit(result, 31);
-                } break;
+                    break;
             }
 
-            zero = result == 0;
-
-            debug(carry);
-            debug(overflow);
-            debug(zero);
-            debug(negative);
-
-            auto set_conditions = [this, carry, overflow, negative, zero]() {
+            auto set_conditions = [this, carry, overflow, result]() {
                 cpsr.set_c(carry);
                 cpsr.set_v(overflow);
-                cpsr.set_n(negative);
-                cpsr.set_z(zero);
+                cpsr.set_n(get_bit(result, 31));
+                cpsr.set_z(result == 0);
             };
 
             if (data.set) {
@@ -564,6 +512,7 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
                     if (cpsr.mode() == Mode::User)
                         log_error("Running {} in User mode",
                                   typeid(data).name());
+                    spsr = cpsr;
                 } else {
                     set_conditions();
                 }

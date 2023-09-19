@@ -15,7 +15,7 @@ catch2_tests = executable(
   dependencies: catch2,
   link_with: tests_deps,
   include_directories: [inc, src],
-  build_by_default: false
+  build_by_default: false,
 )
 
 test('catch2 tests', catch2_tests)

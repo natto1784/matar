@@ -2,6 +2,7 @@
 #include "cpu/utility.hh"
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
 #include <variant>
 
 class CpuFixture {
@@ -21,6 +22,12 @@ class CpuFixture {
     }
 
     CpuImpl cpu;
+
+  private:
+    class Null : public std::streambuf {
+      public:
+        int overflow(int c) override { return c; }
+    };
 };
 
 #define TAG "arm execution"
@@ -230,17 +237,18 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
                           .pre    = true };
     SingleDataTransfer* data_transfer = std::get_if<SingleDataTransfer>(&data);
 
-    cpu.gpr[3]  = 1596;
-    cpu.gpr[12] = 3;
-    cpu.gpr[7]  = 6;
-    cpu.gpr[5]  = -911111;
+    cpu.gpr[3] = 1596;
+    cpu.gpr[7] = 6;
+    cpu.gpr[5] = -911111;
 
     // shifted register (immediate)
     {
+        // 12768 + 6
         cpu.bus->write_word(12774, 95995);
         exec(data);
 
         CHECK(cpu.gpr[5] == 95995);
+        cpu.gpr[5] = 0;
     }
 
     // shifted register (register)
@@ -252,7 +260,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
                                          .operand   = 12,
                                        } };
 
-        cpu.bus->write_word(12774, 3948123487);
+        cpu.gpr[12] = 2;
+        // 6384 + 6
+        cpu.bus->write_word(6390, 3948123487);
         exec(data);
 
         CHECK(cpu.gpr[5] == 3948123487);
@@ -730,6 +740,311 @@ TEST_CASE_METHOD(CpuFixture, "PSR Transfer", TAG) {
         CHECK(cpu.spsr.z() == get_bit(9933394, 30));
         CHECK(cpu.spsr.c() == get_bit(9933394, 29));
         CHECK(cpu.spsr.v() == get_bit(9933394, 28));
+    }
+}
+
+TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
+    InstructionData data =
+      DataProcessing{ .operand = Shift{ .rm = 3,
+                                        .data =
+                                          ShiftData{
+                                            .type      = ShiftType::ROR,
+                                            .immediate = true,
+                                            .operand   = 29,
+                                          } },
+                      .rd      = 5,
+                      .rn      = 7,
+                      .set     = true,
+                      .opcode  = OpCode::AND };
+    DataProcessing* processing = std::get_if<DataProcessing>(&data);
+
+    // operand 1
+    cpu.gpr[7] = -28717;
+
+    // AND with shifted register (imediate)
+    {
+        // rm
+        cpu.gpr[3] = 1596;
+        exec(data);
+        // -28717 & 12768
+        CHECK(cpu.gpr[5] == 448);
+    }
+
+    // AND with shifted register (register)
+    {
+        processing->operand = Shift{ .rm   = 3,
+                                     .data = ShiftData{
+                                       .type      = ShiftType::LSL,
+                                       .immediate = false,
+                                       .operand   = 12,
+                                     } };
+        // rm
+        cpu.gpr[3] = 1596;
+        // rs
+        cpu.gpr[12] = 2;
+        exec(data);
+        // -28717 & 6384
+        CHECK(cpu.gpr[5] == 2256);
+    }
+
+    // same as above but with rn (oprerand 1) = 15
+    {
+        processing->rn = 15;
+        cpu.gpr[15]    = -2871;
+        exec(data);
+
+        // (-2871 + INSTRUCTION_SIZE) & 6384
+        CHECK(cpu.gpr[5] == ((-2871 + INSTRUCTION_SIZE) & 6384));
+
+        // cleanup
+        processing->rn = 7;
+    }
+
+    auto flags = [this](bool n, bool z, bool v, bool c) {
+        CHECK(cpu.cpsr.n() == n);
+        CHECK(cpu.cpsr.z() == z);
+        CHECK(cpu.cpsr.v() == v);
+        CHECK(cpu.cpsr.c() == c);
+
+        cpu.cpsr.set_n(false);
+        cpu.cpsr.set_z(false);
+        cpu.cpsr.set_v(false);
+        cpu.cpsr.set_c(false);
+    };
+
+    // immediate operand
+    processing->operand = static_cast<uint32_t>(54924809);
+    // rs
+    cpu.gpr[12] = 2;
+    cpu.gpr[5]  = 0;
+
+    SECTION("AND") {
+        processing->opcode = OpCode::AND;
+        exec(data);
+
+        // -28717 & 54924809
+        CHECK(cpu.gpr[5] == 54920705);
+
+        // check set flags
+        flags(false, false, false, false);
+    }
+
+    // TST with immediate operand
+    SECTION("TST") {
+        processing->opcode = OpCode::TST;
+
+        exec(data);
+
+        // -28717 & 54924809
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(false, false, false, false);
+    }
+
+    SECTION("EOR") {
+        processing->opcode = OpCode::EOR;
+        exec(data);
+
+        // -28717 ^ 54924809
+        CHECK(cpu.gpr[5] == 4240021978);
+
+        // check set flags
+        flags(true, false, false, false);
+
+        // check zero flag
+        processing->operand = static_cast<uint32_t>(-28717);
+        exec(data);
+
+        // -28717 ^ -28717
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(false, true, false, false);
+    }
+
+    SECTION("TEQ") {
+        processing->opcode = OpCode::TEQ;
+
+        exec(data);
+
+        // -28717 ^ 54924809
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(true, false, false, false);
+    }
+
+    SECTION("SUB") {
+        processing->opcode = OpCode::SUB;
+        exec(data);
+
+        // -28717 - 54924809
+        CHECK(cpu.gpr[5] == static_cast<uint32_t>(-54953526));
+
+        // check set flags
+        flags(true, false, false, true);
+
+        // check zero flag
+        processing->operand = static_cast<uint32_t>(-28717);
+        exec(data);
+
+        // -28717 - (-28717)
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(false, true, false, true);
+    }
+
+    SECTION("CMP") {
+        processing->opcode = OpCode::CMP;
+
+        exec(data);
+
+        // -28717 - 54924809
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(true, false, false, true);
+    }
+
+    SECTION("RSB") {
+        processing->opcode = OpCode::RSB;
+        exec(data);
+
+        // +28717 + 54924809
+        CHECK(cpu.gpr[5] == 54953526);
+
+        // check set flags
+        flags(false, false, false, false);
+    }
+
+    SECTION("ADD") {
+        processing->opcode = OpCode::ADD;
+        exec(data);
+
+        // -28717 + 54924809
+        CHECK(cpu.gpr[5] == 54896092);
+
+        // check set flags
+        flags(false, false, false, false);
+
+        // test zero flag
+        processing->operand = static_cast<uint32_t>(28717);
+        exec(data);
+
+        // -28717 + 28717
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(false, true, false, false);
+
+        // test overflow flag
+        processing->operand = static_cast<uint32_t>((1u << 31) - 1);
+        cpu.gpr[7]          = (1u << 31) - 1;
+
+        exec(data);
+
+        CHECK(cpu.gpr[5] == (1ull << 32) - 2);
+
+        // check set flags
+        flags(true, false, true, false);
+    }
+
+    SECTION("CMN") {
+        processing->opcode = OpCode::CMN;
+
+        exec(data);
+
+        // -28717 + 54924809
+        CHECK(cpu.gpr[5] == 0);
+
+        // check set flags
+        flags(false, false, false, false);
+    }
+
+    SECTION("ADC") {
+        processing->opcode = OpCode::ADC;
+        cpu.cpsr.set_c(true);
+        exec(data);
+
+        // -28717 + 54924809 + carry
+        CHECK(cpu.gpr[5] == 54896093);
+
+        // check set flags
+        flags(false, false, false, false);
+    }
+
+    SECTION("SBC") {
+        processing->opcode = OpCode::SBC;
+        cpu.cpsr.set_c(false);
+        exec(data);
+
+        // -28717 - 54924809 + carry - 1
+        CHECK(cpu.gpr[5] == static_cast<uint32_t>(-54953527));
+
+        // check set flags
+        flags(true, false, false, false);
+    }
+
+    SECTION("RSC") {
+        processing->opcode = OpCode::RSC;
+        cpu.cpsr.set_c(false);
+        exec(data);
+
+        // +28717 +54924809 + carry - 1
+        CHECK(cpu.gpr[5] == 54953525);
+
+        // check set flags
+        flags(false, false, false, false);
+    }
+
+    SECTION("ORR") {
+        processing->opcode = OpCode::ORR;
+        exec(data);
+
+        // -28717 | 54924809
+        CHECK(cpu.gpr[5] == static_cast<uint32_t>(-24613));
+
+        // check set flags
+        flags(true, false, false, false);
+    }
+
+    SECTION("BIC") {
+        processing->opcode = OpCode::BIC;
+        exec(data);
+
+        // -28717 & ~54924809
+        CHECK(cpu.gpr[5] == static_cast<uint32_t>(-54949422));
+
+        // check set flags
+        flags(true, false, false, false);
+    }
+
+    SECTION("MVN") {
+        processing->opcode = OpCode::MVN;
+        exec(data);
+
+        // ~54924809
+        CHECK(cpu.gpr[5] == static_cast<uint32_t>(-54924810));
+
+        // check set flags
+        flags(true, false, false, false);
+    }
+
+    SECTION("R15 as destination") {
+        processing->opcode = OpCode::MVN;
+        processing->rd     = 15;
+        cpu.gpr[15]        = 0;
+        CHECK(cpu.spsr.raw() != cpu.cpsr.raw());
+        exec(data);
+
+        // ~54924809
+        CHECK(cpu.gpr[15] == static_cast<uint32_t>(-54924810));
+
+        // flags are not set
+        flags(false, false, false, false);
+        CHECK(cpu.spsr.raw() == cpu.cpsr.raw());
     }
 }
 

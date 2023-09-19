@@ -90,7 +90,7 @@ main(int argc, const char* argv[]) {
         Cpu cpu(bus);
         while (true) {
             cpu.step();
-            sleep(1);
+            sleep(2);
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;
