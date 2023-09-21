@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+namespace matar {
 class Memory {
   public:
     static constexpr size_t BIOS_SIZE = 1024 * 16;
@@ -63,3 +64,4 @@ class Memory {
     Header header;
     void parse_header();
 };
+}

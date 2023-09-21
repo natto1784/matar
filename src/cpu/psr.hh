@@ -1,8 +1,10 @@
 #pragma once
 
+#include "arm/instruction.hh"
 #include "utility.hh"
 #include <cstdint>
 
+namespace matar {
 class Psr {
   public:
     // clear the reserved bits i.e, [8:27]
@@ -45,7 +47,7 @@ class Psr {
 
 #undef GET_SET_NTH_BIT_FUNCTIONS
 
-    bool condition(Condition cond) const;
+    bool condition(arm::Condition cond) const;
 
   private:
     static constexpr uint32_t PSR_CLEAR_RESERVED = 0xF00000FF;
@@ -53,3 +55,4 @@ class Psr {
 
     uint32_t psr;
 };
+}

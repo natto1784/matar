@@ -4,7 +4,7 @@
 
 #define TAG "disassembler"
 
-using namespace arm;
+using namespace matar::arm;
 
 TEST_CASE("Branch and Exchange", TAG) {
     uint32_t raw = 0b11000001001011111111111100011010;

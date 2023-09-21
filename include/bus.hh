@@ -3,6 +3,7 @@
 #include "memory.hh"
 #include <memory>
 
+namespace matar {
 class Bus {
   public:
     Bus(const Memory& memory);
@@ -19,3 +20,4 @@ class Bus {
   private:
     std::shared_ptr<Memory> memory;
 };
+}

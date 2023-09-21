@@ -6,6 +6,7 @@
 
 #include <cstdint>
 
+namespace matar {
 class CpuImpl {
   public:
     CpuImpl(const Bus& bus) noexcept;
@@ -55,3 +56,4 @@ class CpuImpl {
         Psr und;
     } spsr_banked; // banked saved program status registers
 };
+}

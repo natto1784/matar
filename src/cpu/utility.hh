@@ -5,6 +5,7 @@
 
 static constexpr size_t THUMB_INSTRUCTION_SIZE = 2;
 
+namespace matar {
 enum class Mode {
     /* M[4:0] in PSR */
     User       = 0b10000,
@@ -21,6 +22,7 @@ enum class State {
     Thumb = 1
 };
 
+namespace arm {
 enum class Condition {
     EQ = 0b0000,
     NE = 0b0001,
@@ -42,8 +44,6 @@ enum class Condition {
 // https://fmt.dev/dev/api.html#std-ostream-support
 std::ostream&
 operator<<(std::ostream& os, const Condition cond);
-template<>
-struct fmt::formatter<Condition> : ostream_formatter {};
 
 enum class OpCode {
     AND = 0b0000,
@@ -67,8 +67,6 @@ enum class OpCode {
 // https://fmt.dev/dev/api.html#std-ostream-support
 std::ostream&
 operator<<(std::ostream& os, const OpCode cond);
-template<>
-struct fmt::formatter<OpCode> : ostream_formatter {};
 
 enum class ShiftType {
     LSL = 0b00,
@@ -94,5 +92,12 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry);
 // https://fmt.dev/dev/api.html#std-ostream-support
 std::ostream&
 operator<<(std::ostream& os, const ShiftType cond);
+}
+}
+
 template<>
-struct fmt::formatter<ShiftType> : ostream_formatter {};
+struct fmt::formatter<matar::arm::Condition> : ostream_formatter {};
+template<>
+struct fmt::formatter<matar::arm::OpCode> : ostream_formatter {};
+template<>
+struct fmt::formatter<matar::arm::ShiftType> : ostream_formatter {};

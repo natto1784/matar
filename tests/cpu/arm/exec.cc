@@ -5,6 +5,7 @@
 #include <limits>
 #include <variant>
 
+using namespace matar;
 class CpuFixture {
   public:
     CpuFixture()
@@ -12,7 +13,8 @@ class CpuFixture {
                        std::vector<uint8_t>(Header::HEADER_SIZE)))) {}
 
   protected:
-    void exec(arm::InstructionData data, Condition condition = Condition::AL) {
+    void exec(arm::InstructionData data,
+              arm::Condition condition = arm::Condition::AL) {
         arm::Instruction instruction(condition, data);
         cpu.exec_arm(instruction);
     }

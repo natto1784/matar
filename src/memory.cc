@@ -8,6 +8,7 @@
 
 using namespace logger;
 
+namespace matar {
 Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
                std::vector<uint8_t>&& rom)
   : bios(std::move(bios))
@@ -231,4 +232,5 @@ Memory::parse_header() {
     }
 
     // multiboot not required right now
+}
 }

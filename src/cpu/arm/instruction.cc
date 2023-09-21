@@ -3,7 +3,8 @@
 #include "util/bits.hh"
 #include <iterator>
 
-using namespace arm;
+namespace matar {
+namespace arm {
 
 Instruction::Instruction(uint32_t insn)
   : condition(static_cast<Condition>(bit_range(insn, 28, 31))) {
@@ -494,4 +495,6 @@ Instruction::disassemble() {
         },
         [](auto) { return std::string("unknown instruction"); } },
       data);
+}
+}
 }

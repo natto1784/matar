@@ -1,3 +1,4 @@
+#pragma once
 #include "cpu/utility.hh"
 #include <cstdint>
 #include <variant>
@@ -9,6 +10,7 @@ struct overloaded : Ts... {
 template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
+namespace matar {
 namespace arm {
 static constexpr size_t INSTRUCTION_SIZE = 4;
 
@@ -164,4 +166,5 @@ struct Instruction {
 
     std::string disassemble();
 };
+}
 }

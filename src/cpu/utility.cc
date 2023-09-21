@@ -2,6 +2,8 @@
 #include "util/bits.hh"
 #include <bit>
 
+namespace matar {
+namespace arm {
 std::ostream&
 operator<<(std::ostream& os, const Condition cond) {
 
@@ -132,4 +134,6 @@ operator<<(std::ostream& os, const ShiftType shift_type) {
 #undef CASE
 
     return os;
+}
+}
 }

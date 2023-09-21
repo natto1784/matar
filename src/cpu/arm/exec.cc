@@ -4,9 +4,10 @@
 
 using namespace logger;
 
+namespace matar {
 void
 CpuImpl::exec_arm(const arm::Instruction instruction) {
-    Condition cond            = instruction.condition;
+    arm::Condition cond       = instruction.condition;
     arm::InstructionData data = instruction.data;
 
     debug(cpsr.condition(cond));
@@ -536,4 +537,5 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             log_error("Unimplemented {} instruction", typeid(data).name());
         } },
       data);
+}
 }

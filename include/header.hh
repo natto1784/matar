@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+namespace matar {
 struct Header {
     static constexpr uint8_t HEADER_SIZE = 192;
 
@@ -44,3 +45,4 @@ struct Header {
     uint32_t multiboot_entrypoint;
     uint8_t slave_id;
 };
+}

@@ -1,5 +1,6 @@
 #include "bus.hh"
 
+namespace matar {
 class CpuImpl;
 
 class Cpu {
@@ -17,3 +18,4 @@ class Cpu {
   private:
     std::unique_ptr<CpuImpl> impl;
 };
+}

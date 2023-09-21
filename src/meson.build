@@ -6,7 +6,7 @@ lib_sources = files(
 subdir('cpu')
 
 fmt = dependency('fmt', version : '>=10.1.0')
-lib = static_library(
+lib = library(
   meson.project_name(),
   lib_sources,
   dependencies: [fmt],

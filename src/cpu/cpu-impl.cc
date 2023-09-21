@@ -7,6 +7,7 @@
 
 using namespace logger;
 
+namespace matar {
 CpuImpl::CpuImpl(const Bus& bus) noexcept
   : bus(std::make_shared<Bus>(bus))
   , gpr({ 0 })
@@ -141,4 +142,5 @@ CpuImpl::step() {
             pc += arm::INSTRUCTION_SIZE;
         }
     }
+}
 }

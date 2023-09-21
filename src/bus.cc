@@ -1,6 +1,7 @@
 #include "bus.hh"
 #include <memory>
 
+namespace matar {
 Bus::Bus(const Memory& memory)
   : memory(std::make_shared<Memory>(memory)) {}
 
@@ -32,4 +33,5 @@ Bus::read_word(size_t address) {
 void
 Bus::write_word(size_t address, uint32_t word) {
     memory->write_word(address, word);
+}
 }

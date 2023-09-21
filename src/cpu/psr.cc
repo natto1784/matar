@@ -2,6 +2,7 @@
 #include "util/bits.hh"
 #include "util/log.hh"
 
+namespace matar {
 Psr::Psr(uint32_t raw)
   : psr(raw & PSR_CLEAR_RESERVED) {}
 
@@ -59,7 +60,9 @@ GET_SET_NTH_BIT_FUNCTIONS(n, 31);
 #undef GET_SET_NTH_BIT_FUNCTIONS
 
 bool
-Psr::condition(Condition cond) const {
+Psr::condition(arm::Condition cond) const {
+    using arm::Condition;
+
     switch (cond) {
         case Condition::EQ:
             return z();
@@ -94,4 +97,5 @@ Psr::condition(Condition cond) const {
     }
 
     return false;
+}
 }

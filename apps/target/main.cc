@@ -15,7 +15,7 @@
 int
 main(int argc, const char* argv[]) {
     std::vector<uint8_t> rom;
-    std::array<uint8_t, Memory::BIOS_SIZE> bios = { 0 };
+    std::array<uint8_t, matar::Memory::BIOS_SIZE> bios = { 0 };
 
     auto usage = [argv]() {
         std::cerr << "Usage: " << argv[0] << " <file> [-b <bios>]" << std::endl;
@@ -65,7 +65,7 @@ main(int argc, const char* argv[]) {
         ifile.seekg(0, std::ios::end);
         bios_size = ifile.tellg();
 
-        if (bios_size != Memory::BIOS_SIZE) {
+        if (bios_size != matar::Memory::BIOS_SIZE) {
             throw std::ios::failure("BIOS file has invalid size",
                                     std::error_code());
         }
@@ -85,9 +85,9 @@ main(int argc, const char* argv[]) {
     std::flush(std::cout);
 
     try {
-        Memory memory(std::move(bios), std::move(rom));
-        Bus bus(memory);
-        Cpu cpu(bus);
+        matar::Memory memory(std::move(bios), std::move(rom));
+        matar::Bus bus(memory);
+        matar::Cpu cpu(bus);
         while (true) {
             cpu.step();
             sleep(2);
