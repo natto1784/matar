@@ -7,7 +7,7 @@ using namespace logger;
 namespace matar {
 void
 CpuImpl::exec_arm(const arm::Instruction instruction) {
-    arm::Condition cond       = instruction.condition;
+    Condition cond            = instruction.condition;
     arm::InstructionData data = instruction.data;
 
     debug(cpsr.condition(cond));
@@ -387,6 +387,8 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             }
         },
         [this, pc_error](DataProcessing& data) {
+            using OpCode = DataProcessing::OpCode;
+
             uint32_t op_1 = gpr[data.rn];
             uint32_t op_2 = 0;
 

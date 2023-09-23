@@ -1,10 +1,43 @@
 #pragma once
 
-#include "arm/instruction.hh"
-#include "utility.hh"
 #include <cstdint>
+#include <fmt/ostream.h>
 
 namespace matar {
+enum class Mode {
+    /* M[4:0] in PSR */
+    User       = 0b10000,
+    Fiq        = 0b10001,
+    Irq        = 0b10010,
+    Supervisor = 0b10011,
+    Abort      = 0b10111,
+    Undefined  = 0b11011,
+    System     = 0b11111,
+};
+
+enum class State {
+    Arm   = 0,
+    Thumb = 1
+};
+
+enum class Condition {
+    EQ = 0b0000,
+    NE = 0b0001,
+    CS = 0b0010,
+    CC = 0b0011,
+    MI = 0b0100,
+    PL = 0b0101,
+    VS = 0b0110,
+    VC = 0b0111,
+    HI = 0b1000,
+    LS = 0b1001,
+    GE = 0b1010,
+    LT = 0b1011,
+    GT = 0b1100,
+    LE = 0b1101,
+    AL = 0b1110
+};
+
 class Psr {
   public:
     // clear the reserved bits i.e, [8:27]
@@ -47,7 +80,7 @@ class Psr {
 
 #undef GET_SET_NTH_BIT_FUNCTIONS
 
-    bool condition(arm::Condition cond) const;
+    bool condition(Condition cond) const;
 
   private:
     static constexpr uint32_t PSR_CLEAR_RESERVED = 0xF00000FF;
@@ -55,4 +88,13 @@ class Psr {
 
     uint32_t psr;
 };
+
+// https://fmt.dev/dev/api.html#std-ostream-support
+std::ostream&
+operator<<(std::ostream& os, const Condition cond);
+}
+
+namespace fmt {
+template<>
+struct formatter<matar::Condition> : ostream_formatter {};
 }

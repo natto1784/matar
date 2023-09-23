@@ -1,5 +1,4 @@
 #include "instruction.hh"
-#include "cpu/utility.hh"
 #include "util/bits.hh"
 #include <iterator>
 
@@ -153,6 +152,8 @@ Instruction::Instruction(uint32_t insn)
 
         // Data Processing
     } else if ((insn & 0x0C000000) == 0x00000000) {
+        using OpCode = DataProcessing::OpCode;
+
         uint8_t rd    = bit_range(insn, 12, 15);
         uint8_t rn    = bit_range(insn, 16, 19);
         bool set      = get_bit(insn, 20);
@@ -420,6 +421,8 @@ Instruction::disassemble() {
             }
         },
         [this](DataProcessing& data) {
+            using OpCode = DataProcessing::OpCode;
+
             std::string op_2;
 
             if (const uint32_t* operand =
@@ -495,6 +498,38 @@ Instruction::disassemble() {
         },
         [](auto) { return std::string("unknown instruction"); } },
       data);
+}
+
+std::ostream&
+operator<<(std::ostream& os, const DataProcessing::OpCode opcode) {
+
+#define CASE(opcode)                                                           \
+    case DataProcessing::OpCode::opcode:                                       \
+        os << #opcode;                                                         \
+        break;
+
+    switch (opcode) {
+        CASE(AND)
+        CASE(EOR)
+        CASE(SUB)
+        CASE(RSB)
+        CASE(ADD)
+        CASE(ADC)
+        CASE(SBC)
+        CASE(RSC)
+        CASE(TST)
+        CASE(TEQ)
+        CASE(CMP)
+        CASE(CMN)
+        CASE(ORR)
+        CASE(MOV)
+        CASE(BIC)
+        CASE(MVN)
+    }
+
+#undef CASE
+
+    return os;
 }
 }
 }

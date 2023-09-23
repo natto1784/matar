@@ -1,11 +1,11 @@
 #include "cpu/cpu-impl.hh"
-#include "cpu/utility.hh"
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 #include <variant>
 
 using namespace matar;
+
 class CpuFixture {
   public:
     CpuFixture()
@@ -13,8 +13,7 @@ class CpuFixture {
                        std::vector<uint8_t>(Header::HEADER_SIZE)))) {}
 
   protected:
-    void exec(arm::InstructionData data,
-              arm::Condition condition = arm::Condition::AL) {
+    void exec(arm::InstructionData data, Condition condition = Condition::AL) {
         arm::Instruction instruction(condition, data);
         cpu.exec_arm(instruction);
     }
@@ -746,6 +745,8 @@ TEST_CASE_METHOD(CpuFixture, "PSR Transfer", TAG) {
 }
 
 TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
+    using OpCode = DataProcessing::OpCode;
+
     InstructionData data =
       DataProcessing{ .operand = Shift{ .rm = 3,
                                         .data =

@@ -1,74 +1,7 @@
-#include "utility.hh"
+#include "alu.hh"
 #include "util/bits.hh"
-#include <bit>
 
 namespace matar {
-namespace arm {
-std::ostream&
-operator<<(std::ostream& os, const Condition cond) {
-
-#define CASE(cond)                                                             \
-    case Condition::cond:                                                      \
-        os << #cond;                                                           \
-        break;
-
-    switch (cond) {
-        CASE(EQ)
-        CASE(NE)
-        CASE(CS)
-        CASE(CC)
-        CASE(MI)
-        CASE(PL)
-        CASE(VS)
-        CASE(VC)
-        CASE(HI)
-        CASE(LS)
-        CASE(GE)
-        CASE(LT)
-        CASE(GT)
-        CASE(LE)
-        case Condition::AL: {
-            // empty
-        }
-    }
-
-#undef CASE
-
-    return os;
-}
-
-std::ostream&
-operator<<(std::ostream& os, const OpCode opcode) {
-
-#define CASE(opcode)                                                           \
-    case OpCode::opcode:                                                       \
-        os << #opcode;                                                         \
-        break;
-
-    switch (opcode) {
-        CASE(AND)
-        CASE(EOR)
-        CASE(SUB)
-        CASE(RSB)
-        CASE(ADD)
-        CASE(ADC)
-        CASE(SBC)
-        CASE(RSC)
-        CASE(TST)
-        CASE(TEQ)
-        CASE(CMP)
-        CASE(CMN)
-        CASE(ORR)
-        CASE(MOV)
-        CASE(BIC)
-        CASE(MVN)
-    }
-
-#undef CASE
-
-    return os;
-}
-
 uint32_t
 eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
     uint32_t eval = 0;
@@ -134,6 +67,5 @@ operator<<(std::ostream& os, const ShiftType shift_type) {
 #undef CASE
 
     return os;
-}
 }
 }

@@ -1,10 +1,10 @@
 #include "cpu/arm/instruction.hh"
-#include "cpu/utility.hh"
 #include <catch2/catch_test_macros.hpp>
 
 #define TAG "disassembler"
 
-using namespace matar::arm;
+using namespace matar;
+using namespace arm;
 
 TEST_CASE("Branch and Exchange", TAG) {
     uint32_t raw = 0b11000001001011111111111100011010;
@@ -309,6 +309,8 @@ TEST_CASE("PSR Transfer", TAG) {
 }
 
 TEST_CASE("Data Processing", TAG) {
+    using OpCode = DataProcessing::OpCode;
+
     uint32_t raw = 0b11100000000111100111101101100001;
     Instruction instruction(raw);
     DataProcessing* alu = nullptr;

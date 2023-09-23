@@ -1,7 +1,6 @@
 #include "cpu-impl.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
-#include "utility.hh"
 #include <algorithm>
 #include <cstdio>
 

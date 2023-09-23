@@ -1,7 +1,12 @@
 #pragma once
-#include "cpu/utility.hh"
+#include "cpu/alu.hh"
+#include "cpu/psr.hh"
 #include <cstdint>
+#include <fmt/ostream.h>
 #include <variant>
+
+namespace matar {
+namespace arm {
 
 template<class... Ts>
 struct overloaded : Ts... {
@@ -10,8 +15,6 @@ struct overloaded : Ts... {
 template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
-namespace matar {
-namespace arm {
 static constexpr size_t INSTRUCTION_SIZE = 4;
 
 struct BranchAndExchange {
@@ -84,6 +87,25 @@ struct BlockDataTransfer {
 };
 
 struct DataProcessing {
+    enum class OpCode {
+        AND = 0b0000,
+        EOR = 0b0001,
+        SUB = 0b0010,
+        RSB = 0b0011,
+        ADD = 0b0100,
+        ADC = 0b0101,
+        SBC = 0b0110,
+        RSC = 0b0111,
+        TST = 0b1000,
+        TEQ = 0b1001,
+        CMP = 0b1010,
+        CMN = 0b1011,
+        ORR = 0b1100,
+        MOV = 0b1101,
+        BIC = 0b1110,
+        MVN = 0b1111
+    };
+
     std::variant<Shift, uint32_t> operand;
     uint8_t rd;
     uint8_t rn;
@@ -166,5 +188,13 @@ struct Instruction {
 
     std::string disassemble();
 };
+
+std::ostream&
+operator<<(std::ostream& os, const DataProcessing::OpCode cond);
 }
+}
+
+namespace fmt {
+template<>
+struct formatter<matar::arm::DataProcessing::OpCode> : ostream_formatter {};
 }

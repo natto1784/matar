@@ -60,9 +60,7 @@ GET_SET_NTH_BIT_FUNCTIONS(n, 31);
 #undef GET_SET_NTH_BIT_FUNCTIONS
 
 bool
-Psr::condition(arm::Condition cond) const {
-    using arm::Condition;
-
+Psr::condition(Condition cond) const {
     switch (cond) {
         case Condition::EQ:
             return z();
@@ -93,9 +91,42 @@ Psr::condition(arm::Condition cond) const {
         case Condition::LE:
             return z() || (n() != v());
         case Condition::AL:
-            return true;
+            return true && state() == State::Arm;
     }
 
     return false;
+}
+
+std::ostream&
+operator<<(std::ostream& os, const Condition cond) {
+
+#define CASE(cond)                                                             \
+    case Condition::cond:                                                      \
+        os << #cond;                                                           \
+        break;
+
+    switch (cond) {
+        CASE(EQ)
+        CASE(NE)
+        CASE(CS)
+        CASE(CC)
+        CASE(MI)
+        CASE(PL)
+        CASE(VS)
+        CASE(VC)
+        CASE(HI)
+        CASE(LS)
+        CASE(GE)
+        CASE(LT)
+        CASE(GT)
+        CASE(LE)
+        case Condition::AL: {
+            // empty
+        }
+    }
+
+#undef CASE
+
+    return os;
 }
 }
