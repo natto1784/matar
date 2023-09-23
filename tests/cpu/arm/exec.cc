@@ -13,6 +13,7 @@ class CpuFixture {
                        std::vector<uint8_t>(Header::HEADER_SIZE)))) {}
 
   protected:
+    // TODO: test with other conditions
     void exec(arm::InstructionData data, Condition condition = Condition::AL) {
         arm::Instruction instruction(condition, data);
         cpu.exec_arm(instruction);
@@ -82,7 +83,7 @@ TEST_CASE_METHOD(CpuFixture, "Multiply", TAG) {
 
     // with accumulate
     {
-        uint32_t result = 234912349ull * 124897ull + 99999ull & 0xFFFFFFFF;
+        uint32_t result = (234912349ull * 124897ull + 99999ull) & 0xFFFFFFFF;
         multiply->acc   = true;
         exec(data);
 
@@ -91,7 +92,7 @@ TEST_CASE_METHOD(CpuFixture, "Multiply", TAG) {
 
     // with set
     {
-        uint32_t result = 234912349ull * 124897ull + 99999ull & 0xFFFFFFFF;
+        uint32_t result = (234912349ull * 124897ull + 99999ull) & 0xFFFFFFFF;
         multiply->set   = true;
         exec(data);
 

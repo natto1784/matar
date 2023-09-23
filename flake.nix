@@ -2,80 +2,39 @@
   description = "matar";
 
   inputs = {
-    nixpkgs.url = github:nixos/nixpkgs/master;
+    nixpkgs.url = github:nixos/nixpkgs/nixpkgs-unstable;
+    flake-parts.url = github:hercules-ci/flake-parts;
   };
 
-  outputs = { self, nixpkgs }:
-    let
+  outputs = inputs@{ self, nixpkgs, flake-parts }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+
       systems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
 
-      eachSystem = with nixpkgs.lib; f: foldAttrs mergeAttrs { }
-        (map (s: mapAttrs (_: v: { ${s} = v; }) (f s)) systems);
-    in
-    eachSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
+      imports = [
+        ./nix
+      ];
 
-        # aliases
-        llvm = pkgs.llvmPackages_16;
-        stdenv = llvm.libcxxStdenv;
+      perSystem = { self', system, ... }:
+        let
+          pkgs = import nixpkgs { inherit system; };
 
-
-        # TODO: this is ugly
-        #dependencies
-        nativeBuildInputs = with pkgs;
-          [
-            meson
-            ninja
-
-            # libraries
-            pkg-config
-            cmake
-
-            ((pkgs.fmt.override {
-              inherit stdenv;
-              enableShared = false;
-            }).overrideAttrs (oa: {
-              cmakeFlags = oa.cmakeFlags ++ [ "-DFMT_TEST=off" ];
-            })).dev
-            (catch2_3.override { inherit stdenv; }).out
+          src = pkgs.lib.sourceFilesBySuffices ./. [
+            ".hh"
+            ".cc"
+            ".build"
+            "meson_options.txt"
           ];
-      in
-      rec {
-        packages = rec {
-          inherit (llvm) libcxxabi;
-          matar = stdenv.mkDerivation rec {
-            name = "matar";
-            version = "0.1";
-            src = pkgs.lib.sourceFilesBySuffices ./. [
-              ".hh"
-              ".cc"
-              ".build"
-              "meson_options.txt"
-            ];
-            outputs = [ "out" "dev" ];
-
-            inherit nativeBuildInputs;
-
-            enableParallelBuilding = true;
+        in
+        rec {
+          _module.args = {
+            inherit src pkgs;
           };
-          default = matar;
-        };
 
-        devShells = rec {
-          matar = pkgs.mkShell.override { inherit stdenv; } {
-            name = "matar";
-            packages = nativeBuildInputs ++ (with pkgs; [
-              # lsp
-              clang-tools_16
-            ]);
-          };
-          default = matar;
+          formatter = pkgs.nixpkgs-fmt;
         };
-
-        formatter = pkgs.nixpkgs-fmt;
-      });
+    };
 }

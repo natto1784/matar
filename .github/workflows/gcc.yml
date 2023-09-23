@@ -1,4 +1,4 @@
-name: matar
+name: matar-gcc
 on: [push, pull_request, workflow_dispatch]
 
 env:
@@ -21,16 +21,10 @@ jobs:
 
 
       - name: setup
-        run: nix develop -c meson setup $BUILDDIR
-
-      - name: fmt
-        run: nix develop -c ninja clang-format-check -C $BUILDDIR
-
-      - name: lint
-        run: nix develop -c ninja clang-tidy -C $BUILDDIR
+        run: nix develop .#matar -c meson setup $BUILDDIR
 
       - name: tests
-        run: nix develop -c ninja test -C $BUILDDIR
+        run: nix develop .#matar -c ninja test -C $BUILDDIR
 
       - name: build
-        run: nix develop -c ninja -C $BUILDDIR
+        run: nix develop .#matar -c ninja -C $BUILDDIR

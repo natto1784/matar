@@ -1,0 +1,36 @@
+name: matar-clang
+on: [push, pull_request, workflow_dispatch]
+
+env:
+  BUILDDIR: build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v20
+        with:
+          extra_nix_config: |
+            auto-optimise-store = true
+            experimental-features = nix-command flakes
+      - uses: cachix/cachix-action@v12
+        with:
+          name: pain
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+
+      - name: setup
+        run: nix develop .#matar-clang -c meson setup $BUILDDIR
+
+      - name: fmt
+        run: nix develop .#matar-clang -c ninja clang-format-check -C $BUILDDIR
+
+      - name: lint
+        run: nix develop .#matar-clang -c ninja clang-tidy -C $BUILDDIR
+
+      - name: tests
+        run: nix develop .#matar-clang -c ninja test -C $BUILDDIR
+
+      - name: build
+        run: nix develop .#matar-clang -c ninja -C $BUILDDIR

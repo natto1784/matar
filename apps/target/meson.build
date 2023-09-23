@@ -7,7 +7,7 @@ target_sources = files(
 )
 
 executable(
-  meson.project_name(),
+  'matar',
   target_sources,
   link_with: target_deps,
   include_directories: inc,

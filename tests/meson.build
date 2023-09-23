@@ -10,7 +10,7 @@ subdir('cpu')
 
 catch2 = dependency('catch2-with-main', version: '>=3.4.0', static: true)
 catch2_tests = executable(
-  meson.project_name() + '_tests',
+  'matar_tests',
   tests_sources,
   dependencies: catch2,
   link_with: tests_deps,
