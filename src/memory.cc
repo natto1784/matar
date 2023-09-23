@@ -6,8 +6,6 @@
 #include <bitset>
 #include <stdexcept>
 
-using namespace logger;
-
 namespace matar {
 Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
                std::vector<uint8_t>&& rom)
@@ -23,17 +21,17 @@ Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
       "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570";
 
     if (bios_hash != expected_hash) {
-        log_warn("BIOS hash failed to match, run at your own risk"
-                 "\nExpected : {} "
-                 "\nGot      : {}",
-                 expected_hash,
-                 bios_hash);
+        glogger.warn("BIOS hash failed to match, run at your own risk"
+                     "\nExpected : {} "
+                     "\nGot      : {}",
+                     expected_hash,
+                     bios_hash);
     }
 
     parse_header();
 
-    log_info("Memory successfully initialised");
-    log_info("Cartridge Title: {}", header.title);
+    glogger.info("Memory successfully initialised");
+    glogger.info("Cartridge Title: {}", header.title);
 };
 
 #define MATCHES(area) address >= area##_START&& address <= area##_END
@@ -59,7 +57,7 @@ Memory::read(size_t address) const {
     } else if (MATCHES(ROM_2)) {
         return rom[address - ROM_2_START];
     } else {
-        log_error("Invalid memory region accessed");
+        glogger.error("Invalid memory region accessed");
         return 0xFF;
     }
 }
@@ -85,7 +83,7 @@ Memory::write(size_t address, uint8_t byte) {
     } else if (MATCHES(ROM_2)) {
         rom[address - ROM_2_START] = byte;
     } else {
-        log_error("Invalid memory region accessed");
+        glogger.error("Invalid memory region accessed");
     }
 }
 
@@ -94,7 +92,7 @@ Memory::write(size_t address, uint8_t byte) {
 uint16_t
 Memory::read_halfword(size_t address) const {
     if (address & 0b01)
-        log_warn("Reading a non aligned halfword address");
+        glogger.warn("Reading a non aligned halfword address");
 
     return read(address) | read(address + 1) << 8;
 }
@@ -102,7 +100,7 @@ Memory::read_halfword(size_t address) const {
 void
 Memory::write_halfword(size_t address, uint16_t halfword) {
     if (address & 0b01)
-        log_warn("Writing to a non aligned halfword address");
+        glogger.warn("Writing to a non aligned halfword address");
 
     write(address, halfword & 0xFF);
     write(address + 1, halfword >> 8 & 0xFF);
@@ -111,7 +109,7 @@ Memory::write_halfword(size_t address, uint16_t halfword) {
 uint32_t
 Memory::read_word(size_t address) const {
     if (address & 0b11)
-        log_warn("Reading a non aligned word address");
+        glogger.warn("Reading a non aligned word address");
 
     return read(address) | read(address + 1) << 8 | read(address + 2) << 16 |
            read(address + 3) << 24;
@@ -120,7 +118,7 @@ Memory::read_word(size_t address) const {
 void
 Memory::write_word(size_t address, uint32_t word) {
     if (address & 0b11)
-        log_warn("Writing to a non aligned word address");
+        glogger.warn("Writing to a non aligned word address");
 
     write(address, word & 0xFF);
     write(address + 1, word >> 8 & 0xFF);
@@ -142,7 +140,7 @@ Memory::parse_header() {
 
     // nintendo logo
     if (rom[0x9C] != 0x21)
-        log_info("HEADER: BIOS debugger bits not set to 0");
+        glogger.info("HEADER: BIOS debugger bits not set to 0");
 
     // game info
     header.title = std::string(&rom[0xA0], &rom[0xA0 + 12]);
@@ -177,7 +175,7 @@ Memory::parse_header() {
             break;
 
         default:
-            log_error("HEADER: invalid unique code: {}", rom[0xAC]);
+            glogger.error("HEADER: invalid unique code: {}", rom[0xAC]);
     }
 
     header.title_code = std::string(&rom[0xAD], &rom[0xAE]);
@@ -206,15 +204,16 @@ Memory::parse_header() {
             break;
 
         default:
-            log_error("HEADER: invalid destination/language: {}", rom[0xAF]);
+            glogger.error("HEADER: invalid destination/language: {}",
+                          rom[0xAF]);
     }
 
     if (rom[0xB2] != 0x96)
-        log_error("HEADER: invalid fixed byte at 0xB2");
+        glogger.error("HEADER: invalid fixed byte at 0xB2");
 
     for (size_t i = 0xB5; i < 0xBC; i++) {
         if (rom[i] != 0x00)
-            log_error("HEADER: invalid fixed bytes at 0xB5");
+            glogger.error("HEADER: invalid fixed bytes at 0xB5");
     }
 
     header.version = rom[0xBC];
@@ -228,7 +227,7 @@ Memory::parse_header() {
         chk &= 0xFF;
 
         if (chk != rom[0xBD])
-            log_error("HEADER: checksum does not match");
+            glogger.error("HEADER: checksum does not match");
     }
 
     // multiboot not required right now

@@ -4,11 +4,13 @@ tests_deps = [
 
 src = include_directories('../src')
 
-tests_sources = files()
+tests_sources = files(
+  'main.cc'
+)
 
 subdir('cpu')
 
-catch2 = dependency('catch2-with-main', version: '>=3.4.0', static: true)
+catch2 = dependency('catch2', version: '>=3.4.0', static: true)
 catch2_tests = executable(
   'matar_tests',
   tests_sources,

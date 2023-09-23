@@ -4,8 +4,6 @@
 #include <algorithm>
 #include <cstdio>
 
-using namespace logger;
-
 namespace matar {
 CpuImpl::CpuImpl(const Bus& bus) noexcept
   : bus(std::make_shared<Bus>(bus))
@@ -19,7 +17,7 @@ CpuImpl::CpuImpl(const Bus& bus) noexcept
     cpsr.set_irq_disabled(true);
     cpsr.set_fiq_disabled(true);
     cpsr.set_state(State::Arm);
-    log_info("CPU successfully initialised");
+    glogger.info("CPU successfully initialised");
 
     // PC always points to two instructions ahead
     // PC - 2 is the instruction being executed
@@ -121,14 +119,13 @@ CpuImpl::step() {
     uint32_t cur_pc = pc - 2 * arm::INSTRUCTION_SIZE;
 
     if (cpsr.state() == State::Arm) {
-        debug(cur_pc);
         uint32_t x = bus->read_word(cur_pc);
         arm::Instruction instruction(x);
-        log_info("{:#034b}", x);
+        glogger.info("{:#034b}", x);
 
         exec_arm(instruction);
 
-        log_info("0x{:08X} : {}", cur_pc, instruction.disassemble());
+        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
 
         if (is_flushed) {
             // if flushed, do not increment the PC, instead set it to two

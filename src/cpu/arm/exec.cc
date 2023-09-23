@@ -2,27 +2,24 @@
 #include "util/bits.hh"
 #include "util/log.hh"
 
-using namespace logger;
-
 namespace matar {
 void
 CpuImpl::exec_arm(const arm::Instruction instruction) {
     Condition cond            = instruction.condition;
     arm::InstructionData data = instruction.data;
 
-    debug(cpsr.condition(cond));
     if (!cpsr.condition(cond)) {
         return;
     }
 
     auto pc_error = [](uint8_t r) {
         if (r == PC_INDEX)
-            log_error("Using PC (R15) as operand register");
+            glogger.error("Using PC (R15) as operand register");
     };
 
     auto pc_warn = [](uint8_t r) {
         if (r == PC_INDEX)
-            log_warn("Using PC (R15) as operand register");
+            glogger.warn("Using PC (R15) as operand register");
     };
 
     using namespace arm;
@@ -62,8 +59,8 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
         },
         [this, pc_error](Multiply& data) {
             if (data.rd == data.rm)
-                log_error("rd and rm are not distinct in {}",
-                          typeid(data).name());
+                glogger.error("rd and rm are not distinct in {}",
+                              typeid(data).name());
 
             pc_error(data.rd);
             pc_error(data.rd);
@@ -81,8 +78,8 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
         [this, pc_error](MultiplyLong& data) {
             if (data.rdhi == data.rdlo || data.rdhi == data.rm ||
                 data.rdlo == data.rm)
-                log_error("rdhi, rdlo and rm are not distinct in {}",
-                          typeid(data).name());
+                glogger.error("rdhi, rdlo and rm are not distinct in {}",
+                              typeid(data).name());
 
             pc_error(data.rdhi);
             pc_error(data.rdlo);
@@ -123,7 +120,7 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
                 cpsr.set_v(0);
             }
         },
-        [](Undefined) { log_warn("Undefined instruction"); },
+        [](Undefined) { glogger.warn("Undefined instruction"); },
         [this, pc_error](SingleDataSwap& data) {
             pc_error(data.rm);
             pc_error(data.rn);
@@ -142,12 +139,12 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             uint32_t address = gpr[data.rn];
 
             if (!data.pre && data.write)
-                log_warn("Write-back enabled with post-indexing in {}",
-                         typeid(data).name());
+                glogger.warn("Write-back enabled with post-indexing in {}",
+                             typeid(data).name());
 
             if (data.rn == PC_INDEX && data.write)
-                log_warn("Write-back enabled with base register as PC {}",
-                         typeid(data).name());
+                glogger.warn("Write-back enabled with base register as PC {}",
+                             typeid(data).name());
 
             if (data.write)
                 pc_warn(data.rn);
@@ -216,11 +213,11 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             uint32_t offset  = 0;
 
             if (!data.pre && data.write)
-                log_error("Write-back enabled with post-indexing in {}",
-                          typeid(data).name());
+                glogger.error("Write-back enabled with post-indexing in {}",
+                              typeid(data).name());
 
             if (data.sign && !data.load)
-                log_error("Signed data found in {}", typeid(data).name());
+                glogger.error("Signed data found in {}", typeid(data).name());
 
             if (data.write)
                 pc_warn(data.rn);
@@ -294,8 +291,8 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             pc_error(data.rn);
 
             if (cpsr.mode() == Mode::User && data.s) {
-                log_error("Bit S is set outside priviliged modes in {}",
-                          typeid(data).name());
+                glogger.error("Bit S is set outside priviliged modes in {}",
+                              typeid(data).name());
             }
 
             // we just change modes to load user registers
@@ -304,8 +301,9 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
                 chg_mode(Mode::User);
 
                 if (data.write) {
-                    log_error("Write-back enable for user bank registers in {}",
-                              typeid(data).name());
+                    glogger.error(
+                      "Write-back enable for user bank registers in {}",
+                      typeid(data).name());
                 }
             }
 
@@ -358,8 +356,8 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
         },
         [this, pc_error](PsrTransfer& data) {
             if (data.spsr && cpsr.mode() == Mode::User) {
-                log_error("Accessing SPSR in User mode in {}",
-                          typeid(data).name());
+                glogger.error("Accessing SPSR in User mode in {}",
+                              typeid(data).name());
             }
 
             Psr& psr = data.spsr ? spsr : cpsr;
@@ -513,8 +511,8 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             if (data.set) {
                 if (data.rd == PC_INDEX) {
                     if (cpsr.mode() == Mode::User)
-                        log_error("Running {} in User mode",
-                                  typeid(data).name());
+                        glogger.error("Running {} in User mode",
+                                      typeid(data).name());
                     spsr = cpsr;
                 } else {
                     set_conditions();
@@ -536,7 +534,7 @@ CpuImpl::exec_arm(const arm::Instruction instruction) {
             spsr = cpsr;
         },
         [](auto& data) {
-            log_error("Unimplemented {} instruction", typeid(data).name());
+            glogger.error("Unimplemented {} instruction", typeid(data).name());
         } },
       data);
 }

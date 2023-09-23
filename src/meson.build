@@ -3,8 +3,8 @@ lib_sources = files(
   'bus.cc'
 )
 
+subdir('util')
 subdir('cpu')
-
 
 lib_cpp_args = [ ]
 

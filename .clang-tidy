@@ -6,4 +6,5 @@ Checks: '
   , -cppcoreguidelines-macro-usage
   , -cppcoreguidelines-avoid-const-or-ref-data-members
   , -cppcoreguidelines-non-private-member-variables-in-classes
+  , -cppcoreguidelines-avoid-non-const-global-variables
 '

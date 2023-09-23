@@ -1,6 +1,7 @@
 #include "bus.hh"
 #include "cpu/cpu.hh"
 #include "memory.hh"
+#include "util/loglevel.hh"
 #include <array>
 #include <cstdlib>
 #include <fstream>
@@ -83,6 +84,8 @@ main(int argc, const char* argv[]) {
 
     std::flush(std::cout);
     std::flush(std::cout);
+
+    matar::set_log_level(matar::LogLevel::Debug);
 
     try {
         matar::Memory memory(std::move(bios), std::move(rom));
