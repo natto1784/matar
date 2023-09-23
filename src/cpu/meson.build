@@ -6,3 +6,4 @@ lib_sources += files(
 )
 
 subdir('arm')
+subdir('thumb')
