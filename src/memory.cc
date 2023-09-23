@@ -89,43 +89,6 @@ Memory::write(size_t address, uint8_t byte) {
 
 #undef MATCHES
 
-uint16_t
-Memory::read_halfword(size_t address) const {
-    if (address & 0b01)
-        glogger.warn("Reading a non aligned halfword address");
-
-    return read(address) | read(address + 1) << 8;
-}
-
-void
-Memory::write_halfword(size_t address, uint16_t halfword) {
-    if (address & 0b01)
-        glogger.warn("Writing to a non aligned halfword address");
-
-    write(address, halfword & 0xFF);
-    write(address + 1, halfword >> 8 & 0xFF);
-}
-
-uint32_t
-Memory::read_word(size_t address) const {
-    if (address & 0b11)
-        glogger.warn("Reading a non aligned word address");
-
-    return read(address) | read(address + 1) << 8 | read(address + 2) << 16 |
-           read(address + 3) << 24;
-}
-
-void
-Memory::write_word(size_t address, uint32_t word) {
-    if (address & 0b11)
-        glogger.warn("Writing to a non aligned word address");
-
-    write(address, word & 0xFF);
-    write(address + 1, word >> 8 & 0xFF);
-    write(address + 2, word >> 16 & 0xFF);
-    write(address + 3, word >> 24 & 0xFF);
-}
-
 void
 Memory::parse_header() {
 

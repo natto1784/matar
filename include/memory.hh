@@ -17,12 +17,6 @@ class Memory {
     uint8_t read(size_t address) const;
     void write(size_t address, uint8_t byte);
 
-    uint16_t read_halfword(size_t address) const;
-    void write_halfword(size_t address, uint16_t halfword);
-
-    uint32_t read_word(size_t address) const;
-    void write_word(size_t address, uint32_t word);
-
   private:
 #define MEMORY_REGION(name, start, end)                                        \
     static constexpr size_t name##_START = start;                              \
