@@ -5,7 +5,8 @@ tests_deps = [
 src = include_directories('../src')
 
 tests_sources = files(
-  'main.cc'
+  'main.cc',
+  'bus.cc'
 )
 
 subdir('cpu')
