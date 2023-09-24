@@ -2,8 +2,7 @@
 
 #include <array>
 #include <bit>
-#include <iomanip>
-#include <sstream>
+#include <fmt/core.h>
 #include <string>
 
 // Why I wrote this myself? I do not know
@@ -15,8 +14,8 @@ using std::rotr;
 template<typename std::size_t N>
 std::string
 sha256(std::array<uint8_t, N>& data) {
-    std::stringstream ss;
     // Assuming 1 byte = 8 bits
+    std::string string;
     size_t k = 512 - (N * 8 + 65) % 512;
     size_t L = N + (65 + k) / 8;
     size_t i = 0, j = 0;
@@ -109,12 +108,12 @@ sha256(std::array<uint8_t, N>& data) {
             h[j] += h0[j];
     }
 
-    ss << std::hex << std::setfill('0');
-
     for (j = 0; j < 8; j++)
         for (i = 0; i < 4; i++)
-            ss << std::setw(2) << ((h[j] >> (24 - i * 8)) & 0xFF);
+            fmt::format_to(std::back_inserter(string),
+                           "{:02x}",
+                           ((h[j] >> (24 - i * 8)) & 0xFF));
 
-    return ss.str();
+    return string;
 }
 }

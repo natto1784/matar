@@ -4,7 +4,8 @@ project('matar', 'cpp',
   default_options : ['warning_level=3',
                      'werror=true',
                      'optimization=3',
-                     'cpp_std=c++20'])
+                     'cpp_std=c++20',
+                     'default_library=static'])
 
 compiler = meson.get_compiler('cpp')
 
