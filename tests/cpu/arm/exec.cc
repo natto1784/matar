@@ -13,7 +13,6 @@ class CpuFixture {
                        std::vector<uint8_t>(Header::HEADER_SIZE)))) {}
 
   protected:
-    // TODO: test with other conditions
     void exec(arm::InstructionData data, Condition condition = Condition::AL) {
         arm::Instruction instruction(condition, data);
         cpu.exec_arm(instruction);
@@ -804,16 +803,19 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
         processing->rn = 7;
     }
 
-    auto flags = [this](bool n, bool z, bool v, bool c) {
-        CHECK(cpu.cpsr.n() == n);
-        CHECK(cpu.cpsr.z() == z);
-        CHECK(cpu.cpsr.v() == v);
-        CHECK(cpu.cpsr.c() == c);
-
+    auto reset_flags = [this]() {
         cpu.cpsr.set_n(false);
         cpu.cpsr.set_z(false);
         cpu.cpsr.set_v(false);
         cpu.cpsr.set_c(false);
+    };
+
+    auto flags = [this, reset_flags](bool n, bool z, bool v, bool c) {
+        CHECK(cpu.cpsr.n() == n);
+        CHECK(cpu.cpsr.z() == z);
+        CHECK(cpu.cpsr.v() == v);
+        CHECK(cpu.cpsr.c() == c);
+        reset_flags();
     };
 
     // immediate operand
@@ -821,12 +823,21 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
     // rs
     cpu.gpr[12] = 2;
     cpu.gpr[5]  = 0;
+    reset_flags();
 
-    SECTION("AND") {
+    SECTION("AND (with condition check)") {
         processing->opcode = OpCode::AND;
-        exec(data);
+        cpu.cpsr.set_z(false);
+        exec(data, Condition::EQ);
+
+        // condition is false
+        CHECK(cpu.gpr[5] == 0);
+
+        cpu.cpsr.set_z(true);
+        exec(data, Condition::EQ);
 
         // -28717 & 54924809
+        // condition is true now
         CHECK(cpu.gpr[5] == 54920705);
 
         // check set flags
@@ -846,11 +857,19 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
         flags(false, false, false, false);
     }
 
-    SECTION("EOR") {
+    SECTION("EOR (with condition check)") {
         processing->opcode = OpCode::EOR;
-        exec(data);
+        cpu.cpsr.set_c(true);
+        exec(data, Condition::CC);
+
+        // condition fails
+        CHECK(cpu.gpr[5] == 0);
+
+        cpu.cpsr.set_c(false);
+        exec(data, Condition::CC);
 
         // -28717 ^ 54924809
+        // condition is true now
         CHECK(cpu.gpr[5] == 4240021978);
 
         // check set flags
