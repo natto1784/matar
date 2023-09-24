@@ -10,6 +10,7 @@ tests_sources = files(
 )
 
 subdir('cpu')
+subdir('util')
 
 catch2 = dependency('catch2', version: '>=3.4.0', static: true)
 catch2_tests = executable(

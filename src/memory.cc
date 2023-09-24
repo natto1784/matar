@@ -1,8 +1,8 @@
 #include "memory.hh"
 #include "header.hh"
 #include "util/bits.hh"
+#include "util/crypto.hh"
 #include "util/log.hh"
-#include "util/utils.hh"
 #include <bitset>
 #include <stdexcept>
 

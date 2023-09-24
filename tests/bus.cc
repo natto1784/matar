@@ -1,7 +1,7 @@
 #include "bus.hh"
 #include <catch2/catch_test_macros.hpp>
 
-#define TAG "bus"
+static constexpr auto TAG = "[bus]";
 
 using namespace matar;
 
@@ -41,5 +41,3 @@ TEST_CASE_METHOD(BusFixture, "Word", TAG) {
     CHECK(bus.read_halfword(100724276) == 0x491D);
     CHECK(bus.read_byte(100724276) == 0x1D);
 }
-
-#undef TAG

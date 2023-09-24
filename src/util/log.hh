@@ -6,12 +6,12 @@
 
 namespace logging {
 namespace ansi {
-static constexpr std::string_view RED     = "\033[31m";
-static constexpr std::string_view YELLOW  = "\033[33m";
-static constexpr std::string_view MAGENTA = "\033[35m";
-static constexpr std::string_view WHITE   = "\033[37m";
-static constexpr std::string_view BOLD    = "\033[1m";
-static constexpr std::string_view RESET   = "\033[0m";
+static constexpr auto RED     = "\033[31m";
+static constexpr auto YELLOW  = "\033[33m";
+static constexpr auto MAGENTA = "\033[35m";
+static constexpr auto WHITE   = "\033[37m";
+static constexpr auto BOLD    = "\033[1m";
+static constexpr auto RESET   = "\033[0m";
 }
 
 using fmt::print;
@@ -20,8 +20,9 @@ class Logger {
     using LogLevel = matar::LogLevel;
 
   public:
-    Logger(LogLevel level = LogLevel::Debug)
-      : level(0) {
+    Logger(LogLevel level = LogLevel::Debug, FILE* stream = stderr)
+      : level(0)
+      , stream(stream) {
         set_level(level);
     }
 
@@ -69,14 +70,14 @@ class Logger {
     void set_level(LogLevel level) {
         this->level = (static_cast<uint8_t>(level) << 1) - 1;
     }
-    void set_stream(std::ostream& stream) { this->stream = stream; }
+    void set_stream(FILE* stream) { this->stream = stream; }
 
   private:
     uint8_t level;
-    std::reference_wrapper<std::ostream> stream = std::clog;
+    FILE* stream;
 };
 }
 
 extern logging::Logger glogger;
 
-#define debug(x) logger.debug("{} = {}", #x, x);
+#define debug(x) glogger.debug("{} = {}", #x, x);

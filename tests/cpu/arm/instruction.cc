@@ -1,7 +1,7 @@
 #include "cpu/arm/instruction.hh"
 #include <catch2/catch_test_macros.hpp>
 
-#define TAG "disassembler"
+static constexpr auto TAG = "[arm][disassembly]";
 
 using namespace matar;
 using namespace arm;
@@ -467,5 +467,3 @@ TEST_CASE("Software Interrupt", TAG) {
     CHECK(instruction.condition == Condition::EQ);
     CHECK(instruction.disassemble() == "SWIEQ");
 }
-
-#undef TAG

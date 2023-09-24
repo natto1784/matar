@@ -32,7 +32,7 @@ class CpuFixture {
     };
 };
 
-#define TAG "arm execution"
+static constexpr auto TAG = "[arm][execution]";
 
 using namespace arm;
 
@@ -1051,5 +1051,3 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
         CHECK(cpu.spsr.raw() == cpu.cpsr.raw());
     }
 }
-
-#undef TAG
