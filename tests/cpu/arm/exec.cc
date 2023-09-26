@@ -1,4 +1,7 @@
+#define MATAR_CPU_TESTS
 #include "cpu/cpu-impl.hh"
+#undef MATAR_CPU_TESTS
+
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
@@ -332,7 +335,7 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
     // r15 as rn
     {
-        data_transfer->rn = 15;
+        data_transfer->rn = cpu.PC_INDEX;
         cpu.gpr[15]       = 7577;
 
         exec(data);
@@ -348,7 +351,7 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
     // r15 as rd
     {
         // 4088
-        data_transfer->rd = 15;
+        data_transfer->rd = cpu.PC_INDEX;
         cpu.gpr[15]       = 444444;
 
         exec(data);
@@ -465,7 +468,7 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
 
     // r15 as rn
     {
-        hw_transfer->rn = 15;
+        hw_transfer->rn = cpu.PC_INDEX;
         cpu.gpr[15]     = 399;
 
         exec(data);
@@ -481,7 +484,7 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
 
     // r15 as rd
     {
-        hw_transfer->rd = 15;
+        hw_transfer->rd = cpu.PC_INDEX;
         cpu.gpr[15]     = 224;
 
         exec(data);
@@ -792,7 +795,7 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
 
     // same as above but with rn (oprerand 1) = 15
     {
-        processing->rn = 15;
+        processing->rn = cpu.PC_INDEX;
         cpu.gpr[15]    = -2871;
         exec(data);
 
@@ -1057,7 +1060,7 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
 
     SECTION("R15 as destination") {
         processing->opcode = OpCode::MVN;
-        processing->rd     = 15;
+        processing->rd     = cpu.PC_INDEX;
         cpu.gpr[15]        = 0;
         CHECK(cpu.spsr.raw() != cpu.cpsr.raw());
         exec(data);

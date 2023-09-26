@@ -15,6 +15,10 @@ class CpuImpl {
     void chg_mode(const Mode to);
     void exec(const arm::Instruction instruction);
 
+#ifndef MATAR_CPU_TESTS
+  private:
+#endif
+
     static constexpr uint8_t GPR_COUNT = 16;
 
     static constexpr uint8_t GPR_FIQ_FIRST     = 8;
