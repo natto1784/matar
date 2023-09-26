@@ -11,7 +11,11 @@ lib_cpp_args = [ ]
 fmt = dependency('fmt', version : '>=10.1.0', static: true)
 if not fmt.found()
   fmt = dependency('fmt', version : '>=10.1.0', static: false)
-  lib_cpp_args += 'DFMT_HEADER_ONLY'
+  lib_cpp_args += '-DFMT_HEADER_ONLY'
+endif
+
+if get_option('disassembler')
+  lib_cpp_args += '-DDISASSEMBLER'
 endif
 
 lib = library(

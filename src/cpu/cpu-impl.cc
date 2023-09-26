@@ -121,11 +121,13 @@ CpuImpl::step() {
     if (cpsr.state() == State::Arm) {
         uint32_t x = bus->read_word(cur_pc);
         arm::Instruction instruction(x);
+
+        exec(instruction);
+
+#ifdef DISASSEMBLER
         glogger.info("{:#034b}", x);
-
-        arm(instruction);
-
         glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
+#endif
 
         if (is_flushed) {
             // if flushed, do not increment the PC, instead set it to two

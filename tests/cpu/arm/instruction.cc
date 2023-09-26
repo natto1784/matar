@@ -16,7 +16,9 @@ TEST_CASE("Branch and Exchange", TAG) {
 
     CHECK(bx->rn == 10);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "BXGT R10");
+#endif
 }
 
 TEST_CASE("Branch", TAG) {
@@ -33,10 +35,12 @@ TEST_CASE("Branch", TAG) {
     CHECK(b->offset == 0xFE15FF14);
     CHECK(b->link == true);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "BL 0xFE15FF14");
 
     b->link = false;
     CHECK(instruction.disassemble() == "B 0xFE15FF14");
+#endif
 }
 
 TEST_CASE("Multiply", TAG) {
@@ -54,11 +58,13 @@ TEST_CASE("Multiply", TAG) {
     CHECK(mul->acc == true);
     CHECK(mul->set == true);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "MLAEQS R10,R0,R15,R14");
 
     mul->acc = false;
     mul->set = false;
     CHECK(instruction.disassemble() == "MULEQ R10,R0,R15");
+#endif
 }
 
 TEST_CASE("Multiply Long", TAG) {
@@ -77,6 +83,7 @@ TEST_CASE("Multiply Long", TAG) {
     CHECK(mull->set == true);
     CHECK(mull->uns == true);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "UMULLNES R7,R14,R2,R6");
 
     mull->acc = true;
@@ -85,6 +92,7 @@ TEST_CASE("Multiply Long", TAG) {
     mull->uns = false;
     mull->set = false;
     CHECK(instruction.disassemble() == "SMLALNE R7,R14,R2,R6");
+#endif
 }
 
 TEST_CASE("Undefined", TAG) {
@@ -94,7 +102,10 @@ TEST_CASE("Undefined", TAG) {
     Instruction instruction(raw);
 
     CHECK(instruction.condition == Condition::AL);
+
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "UND");
+#endif
 }
 
 TEST_CASE("Single Data Swap", TAG) {
@@ -110,10 +121,12 @@ TEST_CASE("Single Data Swap", TAG) {
     CHECK(swp->rn == 9);
     CHECK(swp->byte == false);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "SWPGE R5,R6,[R9]");
 
     swp->byte = true;
     CHECK(instruction.disassemble() == "SWPGEB R5,R6,[R9]");
+#endif
 }
 
 TEST_CASE("Single Data Transfer", TAG) {
@@ -138,6 +151,7 @@ TEST_CASE("Single Data Transfer", TAG) {
     CHECK(ldr->up == true);
     CHECK(ldr->pre == true);
 
+#ifdef DISASSEMBLER
     ldr->load        = true;
     ldr->byte        = true;
     ldr->write       = false;
@@ -153,6 +167,7 @@ TEST_CASE("Single Data Transfer", TAG) {
 
     ldr->pre = true;
     CHECK(instruction.disassemble() == "LDRB R10,[R2,-#9023]");
+#endif
 }
 
 TEST_CASE("Halfword Transfer", TAG) {
@@ -176,6 +191,7 @@ TEST_CASE("Halfword Transfer", TAG) {
     CHECK(ldr->up == true);
     CHECK(ldr->pre == true);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "STRCCH R2,[R15,+R6]!");
 
     ldr->pre  = false;
@@ -193,6 +209,7 @@ TEST_CASE("Halfword Transfer", TAG) {
     ldr->imm    = 1;
     ldr->offset = 90;
     CHECK(instruction.disassemble() == "STRCCSB R2,[R15],-#90");
+#endif
 }
 
 TEST_CASE("Block Data Transfer", TAG) {
@@ -223,6 +240,7 @@ TEST_CASE("Block Data Transfer", TAG) {
     CHECK(ldm->up == false);
     CHECK(ldm->pre == true);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "LDMLSDB R7,{R0,R2,R3,R5,R6,R8,R14}^");
 
     ldm->write = true;
@@ -238,6 +256,7 @@ TEST_CASE("Block Data Transfer", TAG) {
     ldm->pre  = false;
 
     CHECK(instruction.disassemble() == "STMLSIA R7!,{R0,R2,R5,R14}");
+#endif
 }
 
 TEST_CASE("PSR Transfer", TAG) {
@@ -256,7 +275,9 @@ TEST_CASE("PSR Transfer", TAG) {
         CHECK(mrs->operand == 10);
         CHECK(mrs->spsr == true);
 
+#ifdef DISASSEMBLER
         CHECK(instruction.disassemble() == "MRSMI R10,SPSR_all");
+#endif
     }
 
     SECTION("MSR") {
@@ -272,7 +293,9 @@ TEST_CASE("PSR Transfer", TAG) {
         CHECK(msr->operand == 8);
         CHECK(msr->spsr == false);
 
+#ifdef DISASSEMBLER
         CHECK(instruction.disassemble() == "MSR CPSR_all,R8");
+#endif
     }
 
     SECTION("MSR_flg with register operand") {
@@ -287,7 +310,9 @@ TEST_CASE("PSR Transfer", TAG) {
         CHECK(msr->operand == 8);
         CHECK(msr->spsr == false);
 
+#ifdef DISASSEMBLER
         CHECK(instruction.disassemble() == "MSRVS CPSR_flg,R8");
+#endif
     }
 
     SECTION("MSR_flg with immediate operand") {
@@ -304,7 +329,9 @@ TEST_CASE("PSR Transfer", TAG) {
         CHECK(msr->operand == 27262976);
         CHECK(msr->spsr == true);
 
+#ifdef DISASSEMBLER
         CHECK(instruction.disassemble() == "MSR SPSR_flg,#27262976");
+#endif
     }
 }
 
@@ -331,6 +358,7 @@ TEST_CASE("Data Processing", TAG) {
     CHECK(alu->set == true);
     CHECK(alu->opcode == OpCode::AND);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "ANDS R7,R14,R1,ROR #22");
 
     shift->data.immediate = false;
@@ -392,6 +420,7 @@ TEST_CASE("Data Processing", TAG) {
         alu->opcode = OpCode::MVN;
         CHECK(instruction.disassemble() == "MVN R7,#3300012");
     }
+#endif
 }
 
 TEST_CASE("Coprocessor Data Transfer", TAG) {
@@ -412,6 +441,7 @@ TEST_CASE("Coprocessor Data Transfer", TAG) {
     CHECK(ldc->up == true);
     CHECK(ldc->pre == true);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "STCGE p1,c15,[R5,#70]!");
 
     ldc->load  = true;
@@ -420,6 +450,7 @@ TEST_CASE("Coprocessor Data Transfer", TAG) {
     ldc->len   = true;
 
     CHECK(instruction.disassemble() == "LDCGEL p1,c15,[R5],#70");
+#endif
 }
 
 TEST_CASE("Coprocessor Operand Operation", TAG) {
@@ -437,7 +468,9 @@ TEST_CASE("Coprocessor Operand Operation", TAG) {
     CHECK(cdp->crn == 5);
     CHECK(cdp->cp_opc == 10);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "CDP p1,10,c15,c5,c6,2");
+#endif
 }
 
 TEST_CASE("Coprocessor Register Transfer", TAG) {
@@ -457,7 +490,9 @@ TEST_CASE("Coprocessor Register Transfer", TAG) {
     CHECK(mrc->load == false);
     CHECK(mrc->cp_opc == 5);
 
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "MCR p1,5,R15,c5,c6,2");
+#endif
 }
 
 TEST_CASE("Software Interrupt", TAG) {
@@ -465,5 +500,8 @@ TEST_CASE("Software Interrupt", TAG) {
     Instruction instruction(raw);
 
     CHECK(instruction.condition == Condition::EQ);
+
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "SWIEQ");
+#endif
 }

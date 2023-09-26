@@ -218,7 +218,9 @@ struct Instruction {
       : condition(condition)
       , data(data){};
 
+#ifdef DISASSEMBLER
     std::string disassemble();
+#endif
 };
 }
 }
