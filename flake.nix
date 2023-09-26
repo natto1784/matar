@@ -26,7 +26,7 @@
             ".hh"
             ".cc"
             ".build"
-            "meson_options.txt"
+            ".options"
           ];
         in
         rec {
