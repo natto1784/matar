@@ -13,7 +13,7 @@ class CpuImpl {
 
     void step();
     void chg_mode(const Mode to);
-    void exec_arm(const arm::Instruction instruction);
+    void exec(const arm::Instruction instruction);
 
     static constexpr uint8_t GPR_COUNT = 16;
 

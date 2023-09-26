@@ -4,7 +4,6 @@
 
 namespace matar {
 namespace arm {
-
 Instruction::Instruction(uint32_t insn)
   : condition(static_cast<Condition>(bit_range(insn, 28, 31))) {
     // Branch and exhcange
@@ -500,36 +499,5 @@ Instruction::disassemble() {
       data);
 }
 
-std::ostream&
-operator<<(std::ostream& os, const DataProcessing::OpCode opcode) {
-
-#define CASE(opcode)                                                           \
-    case DataProcessing::OpCode::opcode:                                       \
-        os << #opcode;                                                         \
-        break;
-
-    switch (opcode) {
-        CASE(AND)
-        CASE(EOR)
-        CASE(SUB)
-        CASE(RSB)
-        CASE(ADD)
-        CASE(ADC)
-        CASE(SBC)
-        CASE(RSC)
-        CASE(TST)
-        CASE(TEQ)
-        CASE(CMP)
-        CASE(CMN)
-        CASE(ORR)
-        CASE(MOV)
-        CASE(BIC)
-        CASE(MVN)
-    }
-
-#undef CASE
-
-    return os;
-}
 }
 }

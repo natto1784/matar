@@ -4,7 +4,7 @@
 
 namespace matar {
 void
-CpuImpl::exec_arm(const arm::Instruction instruction) {
+CpuImpl::exec(const arm::Instruction instruction) {
     Condition cond            = instruction.condition;
     arm::InstructionData data = instruction.data;
 

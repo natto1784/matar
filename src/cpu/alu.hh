@@ -10,6 +10,24 @@ enum class ShiftType {
     ROR = 0b11
 };
 
+constexpr auto
+stringify(ShiftType shift_type) {
+#define CASE(type)                                                             \
+    case ShiftType::type:                                                      \
+        return #type;
+
+    switch (shift_type) {
+        CASE(LSL)
+        CASE(LSR)
+        CASE(ASR)
+        CASE(ROR)
+    }
+
+#undef CASE
+
+    return "";
+}
+
 struct ShiftData {
     ShiftType type;
     bool immediate;
@@ -23,13 +41,4 @@ struct Shift {
 
 uint32_t
 eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry);
-
-// https://fmt.dev/dev/api.html#std-ostream-support
-std::ostream&
-operator<<(std::ostream& os, const ShiftType cond);
-}
-
-namespace fmt {
-template<>
-struct formatter<matar::ShiftType> : ostream_formatter {};
 }

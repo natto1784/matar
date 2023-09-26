@@ -80,4 +80,4 @@ class Logger {
 
 extern logging::Logger glogger;
 
-#define debug(x) glogger.debug("{} = {}", #x, x);
+#define dbg(x) glogger.debug("{} = {}", #x, x);

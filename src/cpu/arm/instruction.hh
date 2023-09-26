@@ -8,6 +8,7 @@
 namespace matar {
 namespace arm {
 
+// https://en.cppreference.com/w/cpp/utility/variant/visit
 template<class... Ts>
 struct overloaded : Ts... {
     using Ts::operator()...;
@@ -113,6 +114,37 @@ struct DataProcessing {
     OpCode opcode;
 };
 
+constexpr auto
+stringify(DataProcessing::OpCode opcode) {
+
+#define CASE(opcode)                                                           \
+    case DataProcessing::OpCode::opcode:                                       \
+        return #opcode;
+
+    switch (opcode) {
+        CASE(AND)
+        CASE(EOR)
+        CASE(SUB)
+        CASE(RSB)
+        CASE(ADD)
+        CASE(ADC)
+        CASE(SBC)
+        CASE(RSC)
+        CASE(TST)
+        CASE(TEQ)
+        CASE(CMP)
+        CASE(CMN)
+        CASE(ORR)
+        CASE(MOV)
+        CASE(BIC)
+        CASE(MVN)
+    }
+
+#undef CASE
+
+    return "";
+}
+
 struct PsrTransfer {
     enum class Type {
         Mrs,
@@ -188,13 +220,5 @@ struct Instruction {
 
     std::string disassemble();
 };
-
-std::ostream&
-operator<<(std::ostream& os, const DataProcessing::OpCode cond);
 }
-}
-
-namespace fmt {
-template<>
-struct formatter<matar::arm::DataProcessing::OpCode> : ostream_formatter {};
 }

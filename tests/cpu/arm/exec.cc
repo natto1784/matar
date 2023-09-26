@@ -15,7 +15,7 @@ class CpuFixture {
   protected:
     void exec(arm::InstructionData data, Condition condition = Condition::AL) {
         arm::Instruction instruction(condition, data);
-        cpu.exec_arm(instruction);
+        cpu.exec(instruction);
     }
 
     void reset(uint32_t value = 0) {

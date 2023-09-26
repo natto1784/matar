@@ -38,6 +38,38 @@ enum class Condition {
     AL = 0b1110
 };
 
+constexpr auto
+stringify(Condition cond) {
+
+#define CASE(cond)                                                             \
+    case Condition::cond:                                                      \
+        return #cond;
+
+    switch (cond) {
+        CASE(EQ)
+        CASE(NE)
+        CASE(CS)
+        CASE(CC)
+        CASE(MI)
+        CASE(PL)
+        CASE(VS)
+        CASE(VC)
+        CASE(HI)
+        CASE(LS)
+        CASE(GE)
+        CASE(LT)
+        CASE(GT)
+        CASE(LE)
+        case Condition::AL: {
+            // empty
+        }
+    }
+
+#undef CASE
+
+    return "";
+}
+
 class Psr {
   public:
     // clear the reserved bits i.e, [8:27]
@@ -88,13 +120,4 @@ class Psr {
 
     uint32_t psr;
 };
-
-// https://fmt.dev/dev/api.html#std-ostream-support
-std::ostream&
-operator<<(std::ostream& os, const Condition cond);
-}
-
-namespace fmt {
-template<>
-struct formatter<matar::Condition> : ostream_formatter {};
 }

@@ -123,7 +123,7 @@ CpuImpl::step() {
         arm::Instruction instruction(x);
         glogger.info("{:#034b}", x);
 
-        exec_arm(instruction);
+        arm(instruction);
 
         glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
 

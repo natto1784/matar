@@ -48,24 +48,4 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
 
     return eval;
 }
-
-std::ostream&
-operator<<(std::ostream& os, const ShiftType shift_type) {
-
-#define CASE(type)                                                             \
-    case ShiftType::type:                                                      \
-        os << #type;                                                           \
-        break;
-
-    switch (shift_type) {
-        CASE(LSL)
-        CASE(LSR)
-        CASE(ASR)
-        CASE(ROR)
-    }
-
-#undef CASE
-
-    return os;
-}
 }
