@@ -2,8 +2,7 @@
 #include "util/bits.hh"
 #include <iterator>
 
-namespace matar {
-namespace arm {
+namespace matar::arm {
 Instruction::Instruction(uint32_t insn)
   : condition(static_cast<Condition>(bit_range(insn, 28, 31))) {
     // Branch and exhcange
@@ -273,6 +272,5 @@ Instruction::Instruction(uint32_t insn)
     } else {
         data = Undefined{};
     }
-}
 }
 }

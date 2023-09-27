@@ -1,24 +1,10 @@
 #include "instruction.hh"
 #include "util/bits.hh"
-#include <iterator>
 
-namespace matar {
-namespace thumb {
-
+namespace matar::thumb {
 Instruction::Instruction(uint16_t insn) {
-    // Format 1:  Move Shifted Register
-    if ((insn & 0xE000) == 0x0000) {
-        uint8_t rd       = bit_range(insn, 0, 2);
-        uint8_t rs       = bit_range(insn, 3, 5);
-        uint8_t offset   = bit_range(insn, 6, 10);
-        ShiftType opcode = static_cast<ShiftType>(bit_range(insn, 11, 12));
-
-        data = MoveShiftedRegister{
-            .rd = rd, .rs = rs, .offset = offset, .opcode = opcode
-        };
-
-        // Format 2: Add/Subtract
-    } else if ((insn & 0xF800) == 0x1800) {
+    // Format 2: Add/Subtract
+    if ((insn & 0xF800) == 0x1800) {
         uint8_t rd     = bit_range(insn, 0, 2);
         uint8_t rs     = bit_range(insn, 3, 5);
         uint8_t offset = bit_range(insn, 6, 8);
@@ -28,6 +14,17 @@ Instruction::Instruction(uint16_t insn) {
 
         data = AddSubtract{
             .rd = rd, .rs = rs, .offset = offset, .opcode = opcode, .imm = imm
+        };
+
+        // Format 1:  Move Shifted Register
+    } else if ((insn & 0xE000) == 0x0000) {
+        uint8_t rd       = bit_range(insn, 0, 2);
+        uint8_t rs       = bit_range(insn, 3, 5);
+        uint8_t offset   = bit_range(insn, 6, 10);
+        ShiftType opcode = static_cast<ShiftType>(bit_range(insn, 11, 12));
+
+        data = MoveShiftedRegister{
+            .rd = rd, .rs = rs, .offset = offset, .opcode = opcode
         };
 
         // Format 3: Move/compare/add/subtract immediate
@@ -58,9 +55,10 @@ Instruction::Instruction(uint16_t insn) {
         HiRegisterOperations::OpCode opcode =
           static_cast<HiRegisterOperations::OpCode>(bit_range(insn, 8, 9));
 
-        data = HiRegisterOperations{
-            .rd = rd, .rs = rs, .hi_2 = hi_2, .hi_1 = hi_1, .opcode = opcode
-        };
+        rd += (hi_1 ? LO_GPR_COUNT : 0);
+        rs += (hi_2 ? LO_GPR_COUNT : 0);
+
+        data = HiRegisterOperations{ .rd = rd, .rs = rs, .opcode = opcode };
         // Format 6: PC-relative load
     } else if ((insn & 0xF800) == 0x4800) {
         uint8_t word = bit_range(insn, 0, 7);
@@ -168,24 +166,26 @@ Instruction::Instruction(uint16_t insn) {
 
         // Format 16: Conditional branch
     } else if ((insn & 0xF000) == 0xD000) {
-        uint8_t offset      = bit_range(insn, 0, 7);
+        uint16_t offset     = bit_range(insn, 0, 7);
         Condition condition = static_cast<Condition>(bit_range(insn, 8, 11));
 
-        data = ConditionalBranch{ .offset = offset, .condition = condition };
+        data = ConditionalBranch{ .offset = static_cast<uint16_t>(offset << 1),
+                                  .condition = condition };
 
         // Format 18: Unconditional branch
     } else if ((insn & 0xF800) == 0xE000) {
         uint16_t offset = bit_range(insn, 0, 10);
 
-        data = UnconditionalBranch{ .offset = offset };
+        data =
+          UnconditionalBranch{ .offset = static_cast<uint16_t>(offset << 1) };
 
         // Format 19: Long branch with link
     } else if ((insn & 0xF000) == 0xF000) {
         uint16_t offset = bit_range(insn, 0, 10);
         bool high       = get_bit(insn, 11);
 
-        data = LongBranchWithLink{ .offset = offset, .high = high };
+        data = LongBranchWithLink{ .offset = static_cast<uint16_t>(offset << 1),
+                                   .high   = high };
     }
-}
 }
 }

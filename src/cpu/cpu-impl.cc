@@ -3,6 +3,7 @@
 #include "util/log.hh"
 #include <algorithm>
 #include <cstdio>
+#include <type_traits>
 
 namespace matar {
 CpuImpl::CpuImpl(const Bus& bus) noexcept

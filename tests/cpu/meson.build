@@ -1,1 +1,2 @@
 subdir('arm')
+subdir('thumb')

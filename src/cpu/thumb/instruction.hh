@@ -1,13 +1,14 @@
 #pragma once
+
 #include "cpu/alu.hh"
 #include "cpu/psr.hh"
 #include <cstdint>
 #include <fmt/ostream.h>
 #include <variant>
 
-namespace matar {
-namespace thumb {
+namespace matar::thumb {
 
+// https://en.cppreference.com/w/cpp/utility/variant/visit
 template<class... Ts>
 struct overloaded : Ts... {
     using Ts::operator()...;
@@ -16,6 +17,7 @@ template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
 static constexpr size_t INSTRUCTION_SIZE = 2;
+static constexpr uint8_t LO_GPR_COUNT    = 8;
 
 struct MoveShiftedRegister {
     uint8_t rd;
@@ -37,6 +39,21 @@ struct AddSubtract {
     bool imm;
 };
 
+constexpr auto
+stringify(AddSubtract::OpCode opcode) {
+#define CASE(opcode)                                                           \
+    case AddSubtract::OpCode::opcode:                                          \
+        return #opcode;
+
+    switch (opcode) {
+        CASE(ADD)
+        CASE(SUB)
+    }
+
+#undef CASE
+    return "";
+}
+
 struct MovCmpAddSubImmediate {
     enum class OpCode {
         MOV = 0b00,
@@ -49,6 +66,23 @@ struct MovCmpAddSubImmediate {
     uint8_t rd;
     OpCode opcode;
 };
+
+constexpr auto
+stringify(MovCmpAddSubImmediate::OpCode opcode) {
+#define CASE(opcode)                                                           \
+    case MovCmpAddSubImmediate::OpCode::opcode:                                \
+        return #opcode;
+
+    switch (opcode) {
+        CASE(MOV)
+        CASE(CMP)
+        CASE(ADD)
+        CASE(SUB)
+    }
+
+#undef CASE
+    return "";
+}
 
 struct AluOperations {
     enum class OpCode {
@@ -75,6 +109,36 @@ struct AluOperations {
     OpCode opcode;
 };
 
+constexpr auto
+stringify(AluOperations::OpCode opcode) {
+
+#define CASE(opcode)                                                           \
+    case AluOperations::OpCode::opcode:                                        \
+        return #opcode;
+
+    switch (opcode) {
+        CASE(AND)
+        CASE(EOR)
+        CASE(LSL)
+        CASE(LSR)
+        CASE(ASR)
+        CASE(ADC)
+        CASE(SBC)
+        CASE(ROR)
+        CASE(TST)
+        CASE(NEG)
+        CASE(CMP)
+        CASE(CMN)
+        CASE(ORR)
+        CASE(MUL)
+        CASE(BIC)
+        CASE(MVN)
+    }
+
+#undef CASE
+    return "";
+}
+
 struct HiRegisterOperations {
     enum class OpCode {
         ADD = 0b00,
@@ -85,10 +149,25 @@ struct HiRegisterOperations {
 
     uint8_t rd;
     uint8_t rs;
-    bool hi_2;
-    bool hi_1;
     OpCode opcode;
 };
+
+constexpr auto
+stringify(HiRegisterOperations::OpCode opcode) {
+#define CASE(opcode)                                                           \
+    case HiRegisterOperations::OpCode::opcode:                                 \
+        return #opcode;
+
+    switch (opcode) {
+        CASE(ADD)
+        CASE(CMP)
+        CASE(MOV)
+        CASE(BX)
+    }
+
+#undef CASE
+    return "";
+}
 
 struct PcRelativeLoad {
     uint8_t word;
@@ -156,7 +235,7 @@ struct MultipleLoad {
 };
 
 struct ConditionalBranch {
-    uint8_t offset;
+    uint16_t offset;
     Condition condition;
 };
 
@@ -196,35 +275,8 @@ struct Instruction {
 
     Instruction(uint16_t insn);
 
+#ifdef DISASSEMBLER
     std::string disassemble();
+#endif
 };
-
-std::ostream&
-operator<<(std::ostream& os, const AddSubtract::OpCode cond);
-
-std::ostream&
-operator<<(std::ostream& os, const MovCmpAddSubImmediate::OpCode cond);
-
-std::ostream&
-operator<<(std::ostream& os, const AluOperations::OpCode cond);
-
-std::ostream&
-operator<<(std::ostream& os, const HiRegisterOperations::OpCode cond);
-}
-}
-
-namespace fmt {
-template<>
-struct formatter<matar::thumb::AddSubtract::OpCode> : ostream_formatter {};
-
-template<>
-struct formatter<matar::thumb::MovCmpAddSubImmediate::OpCode>
-  : ostream_formatter {};
-
-template<>
-struct formatter<matar::thumb::AluOperations::OpCode> : ostream_formatter {};
-
-template<>
-struct formatter<matar::thumb::HiRegisterOperations::OpCode>
-  : ostream_formatter {};
 }

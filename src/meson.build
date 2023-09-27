@@ -6,7 +6,7 @@ lib_sources = files(
 subdir('util')
 subdir('cpu')
 
-lib_cpp_args = [ ]
+lib_cpp_args = []
 
 fmt = dependency('fmt', version : '>=10.1.0', static: true)
 if not fmt.found()

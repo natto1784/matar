@@ -1,8 +1,7 @@
 #include "instruction.hh"
 #include "util/bits.hh"
 
-namespace matar {
-namespace arm {
+namespace matar::arm {
 std::string
 Instruction::disassemble() {
     auto condition = stringify(this->condition);
@@ -230,6 +229,5 @@ Instruction::disassemble() {
         },
         [](auto) { return std::string("unknown instruction"); } },
       data);
-}
 }
 }

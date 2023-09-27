@@ -15,6 +15,7 @@ class CpuImpl {
     void chg_mode(const Mode to);
     void exec(const arm::Instruction instruction);
 
+    // TODO: get rid of this
 #ifndef MATAR_CPU_TESTS
   private:
 #endif

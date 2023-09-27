@@ -5,8 +5,7 @@
 #include <fmt/ostream.h>
 #include <variant>
 
-namespace matar {
-namespace arm {
+namespace matar::arm {
 
 // https://en.cppreference.com/w/cpp/utility/variant/visit
 template<class... Ts>
@@ -222,5 +221,4 @@ struct Instruction {
     std::string disassemble();
 #endif
 };
-}
 }
