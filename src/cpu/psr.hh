@@ -61,7 +61,7 @@ stringify(Condition cond) {
         CASE(GT)
         CASE(LE)
         case Condition::AL: {
-            // empty
+            return "";
         }
     }
 

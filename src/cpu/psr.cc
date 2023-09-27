@@ -13,7 +13,7 @@ Psr::raw() const {
 
 void
 Psr::set_all(uint32_t raw) {
-    psr = raw & ~PSR_CLEAR_RESERVED;
+    psr = raw;
 }
 
 Mode
@@ -91,7 +91,7 @@ Psr::condition(Condition cond) const {
         case Condition::LE:
             return z() || (n() != v());
         case Condition::AL:
-            return true && state() == State::Arm;
+            return true;
     }
 
     return false;

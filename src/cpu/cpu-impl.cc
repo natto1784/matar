@@ -123,7 +123,7 @@ CpuImpl::step() {
         uint32_t x = bus->read_word(cur_pc);
         arm::Instruction instruction(x);
 
-        exec(instruction);
+        instruction.exec(*this);
 
 #ifdef DISASSEMBLER
         glogger.info("{:#034b}", x);
