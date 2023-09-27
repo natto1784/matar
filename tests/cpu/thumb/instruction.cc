@@ -1,7 +1,7 @@
 #include "cpu/thumb/instruction.hh"
 #include <catch2/catch_test_macros.hpp>
 
-static constexpr auto TAG = "[thumb][disassembly]";
+#define TAG "[thumb][disassembly]"
 
 using namespace matar;
 using namespace thumb;
@@ -437,3 +437,5 @@ TEST_CASE("Long Branch with link") {
     CHECK(instruction.disassemble() == "BLH 2520");
 #endif
 }
+
+#undef TAG

@@ -1,7 +1,7 @@
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
 
-static constexpr auto TAG = "[util][bits]";
+#define TAG "[util][bits]"
 
 TEST_CASE("8 bits", TAG) {
     uint8_t num = 45;
@@ -104,3 +104,5 @@ TEST_CASE("64 bits", TAG) {
     // 0b011010001
     CHECK(bit_range(num, 39, 47) == 209);
 }
+
+#undef TAG

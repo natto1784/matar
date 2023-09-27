@@ -1,7 +1,7 @@
 #include "memory.hh"
 #include <catch2/catch_test_macros.hpp>
 
-static constexpr auto TAG = "[memory]";
+#define TAG "[memory]"
 
 using namespace matar;
 
@@ -119,3 +119,5 @@ TEST_CASE("rom", TAG) {
         CHECK(memory.read(0xCEF0256) == 0x10);
     }
 }
+
+#undef TAG

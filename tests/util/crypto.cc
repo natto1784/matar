@@ -1,7 +1,7 @@
 #include "util/crypto.hh"
 #include <catch2/catch_test_macros.hpp>
 
-static constexpr auto TAG = "[util][crypto]";
+#define TAG "[util][crypto]"
 
 TEST_CASE("sha256 matar", TAG) {
     std::array<uint8_t, 5> data = { 'm', 'a', 't', 'a', 'r' };
@@ -19,3 +19,5 @@ TEST_CASE("sha256 forgis", TAG) {
     CHECK(crypto::sha256(data) ==
           "cfddca2ce2673f355518cbe2df2a8522693c54723a469e8b36a4f68b90d2b759");
 }
+
+#undef TAG

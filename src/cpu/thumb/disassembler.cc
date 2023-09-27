@@ -132,9 +132,8 @@ Instruction::disassemble() {
         },
         [](SoftwareInterrupt) { return std::string("SWI"); },
         [](ConditionalBranch& data) {
-            return fmt::format("B{} {:d}",
-                               stringify(data.condition),
-                               data.offset);
+            return fmt::format(
+              "B{} {:d}", stringify(data.condition), data.offset);
         },
         [](UnconditionalBranch& data) {
             return fmt::format("B {:d}", data.offset);
