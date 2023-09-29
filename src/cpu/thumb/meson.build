@@ -1,5 +1,6 @@
 lib_sources += files(
-  'instruction.cc'
+  'instruction.cc',
+  'exec.cc'
 )
 
 if get_option('disassembler')

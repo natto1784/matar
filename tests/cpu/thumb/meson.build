@@ -1,3 +1,4 @@
 tests_sources += files(
-  'instruction.cc'
+  'instruction.cc',
+  'exec.cc'
 )

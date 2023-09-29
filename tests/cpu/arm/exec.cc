@@ -1,9 +1,7 @@
+#include "cpu/cpu-fixture.hh"
 #include "cpu/cpu-impl.hh"
-#include "fixture.hh"
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
-#include <limits>
-#include <variant>
 
 using namespace matar;
 
@@ -14,11 +12,11 @@ using namespace arm;
 TEST_CASE_METHOD(CpuFixture, "Branch and Exchange", TAG) {
     InstructionData data = BranchAndExchange{ .rn = 3 };
 
-    setr(3, 342890);
+    setr(3, 342800);
 
     exec(data);
 
-    CHECK(getr(15) == 342890);
+    CHECK(getr(15) == 342800);
 }
 
 TEST_CASE_METHOD(CpuFixture, "Branch", TAG) {
@@ -806,14 +804,11 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
 
         processing->opcode = OpCode::AND;
 
-        cpsr.set_z(false);
-        set_psr(cpsr);
         exec(data, Condition::EQ);
 
         // condition is false
         CHECK(getr(5) == 0);
 
-        cpsr = psr();
         cpsr.set_z(true);
         set_psr(cpsr);
         exec(data, Condition::EQ);

@@ -15,6 +15,11 @@ class CpuFixture {
         instruction.exec(cpu);
     }
 
+    void exec(thumb::InstructionData data) {
+        thumb::Instruction instruction(data);
+        instruction.exec(cpu);
+    }
+
     void reset(uint32_t value = 0) { setr(15, value + 8); }
 
     uint32_t getr(uint8_t r) { return getr_(r, cpu); }

@@ -1,8 +1,9 @@
 #pragma once
 
+#include "arm/instruction.hh"
 #include "bus.hh"
-#include "cpu/arm/instruction.hh"
 #include "cpu/psr.hh"
+#include "thumb/instruction.hh"
 
 #include <cstdint>
 
@@ -16,6 +17,7 @@ class CpuImpl {
 
   private:
     friend void arm::Instruction::exec(CpuImpl& cpu);
+    friend void thumb::Instruction::exec(CpuImpl& cpu);
 
     static constexpr uint8_t GPR_COUNT = 16;
 
@@ -32,12 +34,17 @@ class CpuImpl {
     Psr cpsr; // current program status register
     Psr spsr; // status program status register
 
+    static constexpr uint8_t SP_INDEX = 13;
+    static_assert(SP_INDEX < GPR_COUNT);
+    uint32_t& sp = gpr[SP_INDEX];
+
+    static constexpr uint8_t LR_INDEX = 14;
+    static_assert(LR_INDEX < GPR_COUNT);
+    uint32_t& lr = gpr[LR_INDEX];
+
     static constexpr uint8_t PC_INDEX = 15;
     static_assert(PC_INDEX < GPR_COUNT);
-
     uint32_t& pc = gpr[PC_INDEX];
-
-    bool is_flushed;
 
     struct {
         std::array<uint32_t, GPR_COUNT - GPR_FIQ_FIRST - 1> fiq;
@@ -57,5 +64,7 @@ class CpuImpl {
         Psr irq;
         Psr und;
     } spsr_banked; // banked saved program status registers
+
+    bool is_flushed;
 };
 }

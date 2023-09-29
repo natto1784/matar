@@ -1,4 +1,6 @@
 #include "cpu-impl.hh"
+#include "cpu/arm/instruction.hh"
+#include "cpu/thumb/instruction.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
 #include <algorithm>
@@ -11,9 +13,9 @@ CpuImpl::CpuImpl(const Bus& bus) noexcept
   , gpr({ 0 })
   , cpsr(0)
   , spsr(0)
-  , is_flushed(false)
   , gpr_banked({ { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 } })
-  , spsr_banked({ 0, 0, 0, 0, 0 }) {
+  , spsr_banked({ 0, 0, 0, 0, 0 })
+  , is_flushed(false) {
     cpsr.set_mode(Mode::Supervisor);
     cpsr.set_irq_disabled(true);
     cpsr.set_fiq_disabled(true);
@@ -120,25 +122,38 @@ CpuImpl::step() {
     uint32_t cur_pc = pc - 2 * arm::INSTRUCTION_SIZE;
 
     if (cpsr.state() == State::Arm) {
-        uint32_t x = bus->read_word(cur_pc);
-        arm::Instruction instruction(x);
+        arm::Instruction instruction(bus->read_word(cur_pc));
+
+#ifdef DISASSEMBLER
+        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
+#endif
 
         instruction.exec(*this);
 
+    } else {
+        thumb::Instruction instruction(bus->read_halfword(cur_pc));
+
 #ifdef DISASSEMBLER
-        glogger.info("{:#034b}", x);
-        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
+        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble(cur_pc));
 #endif
+
+        instruction.exec(*this);
+    }
+
+    // advance PC
+    {
+        size_t size = cpsr.state() == State::Arm ? arm::INSTRUCTION_SIZE
+                                                 : thumb::INSTRUCTION_SIZE;
 
         if (is_flushed) {
             // if flushed, do not increment the PC, instead set it to two
             // instructions ahead to account for flushed "fetch" and "decode"
             // instructions
-            pc += 2 * arm::INSTRUCTION_SIZE;
+            pc += 2 * size;
             is_flushed = false;
         } else {
             // if not flushed continue like normal
-            pc += arm::INSTRUCTION_SIZE;
+            pc += size;
         }
     }
 }

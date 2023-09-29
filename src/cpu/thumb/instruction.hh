@@ -6,7 +6,10 @@
 #include <fmt/ostream.h>
 #include <variant>
 
-namespace matar::thumb {
+namespace matar {
+class CpuImpl;
+
+namespace thumb {
 
 // https://en.cppreference.com/w/cpp/utility/variant/visit
 template<class... Ts>
@@ -170,7 +173,7 @@ stringify(HiRegisterOperations::OpCode opcode) {
 }
 
 struct PcRelativeLoad {
-    uint8_t word;
+    uint16_t word;
     uint8_t rd;
 };
 
@@ -206,20 +209,19 @@ struct LoadStoreHalfword {
 };
 
 struct SpRelativeLoad {
-    uint8_t word;
+    uint16_t word;
     uint8_t rd;
     bool load;
 };
 
 struct LoadAddress {
-    uint8_t word;
+    uint16_t word;
     uint8_t rd;
     bool sp;
 };
 
 struct AddOffsetStackPointer {
-    uint8_t word;
-    bool sign;
+    int16_t word;
 };
 
 struct PushPopRegister {
@@ -235,14 +237,16 @@ struct MultipleLoad {
 };
 
 struct ConditionalBranch {
-    uint16_t offset;
+    int32_t offset;
     Condition condition;
 };
 
-struct SoftwareInterrupt {};
+struct SoftwareInterrupt {
+    uint8_t vector;
+};
 
 struct UnconditionalBranch {
-    uint16_t offset;
+    int32_t offset;
 };
 
 struct LongBranchWithLink {
@@ -271,12 +275,17 @@ using InstructionData = std::variant<MoveShiftedRegister,
                                      LongBranchWithLink>;
 
 struct Instruction {
-    InstructionData data;
-
     Instruction(uint16_t insn);
+    Instruction(InstructionData data)
+      : data(data) {}
+
+    void exec(CpuImpl& cpu);
 
 #ifdef DISASSEMBLER
-    std::string disassemble();
+    std::string disassemble(uint32_t pc = 0);
 #endif
+
+    InstructionData data;
 };
+}
 }

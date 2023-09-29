@@ -212,18 +212,19 @@ using InstructionData = std::variant<BranchAndExchange,
                                      SoftwareInterrupt>;
 
 struct Instruction {
-    Condition condition;
-    InstructionData data;
-
     Instruction(uint32_t insn);
-    Instruction(Condition condition, InstructionData data) noexcept
+    Instruction(Condition condition, InstructionData data)
       : condition(condition)
       , data(data){};
+
     void exec(CpuImpl& cpu);
 
 #ifdef DISASSEMBLER
     std::string disassemble();
 #endif
+
+    Condition condition;
+    InstructionData data;
 };
 }
 }

@@ -3,7 +3,7 @@
 
 namespace matar::thumb {
 std::string
-Instruction::disassemble() {
+Instruction::disassemble(uint32_t pc) {
     return std::visit(
       overloaded{
         [](MoveShiftedRegister& data) {
@@ -90,8 +90,7 @@ Instruction::disassemble() {
                                data.word);
         },
         [](AddOffsetStackPointer& data) {
-            return fmt::format(
-              "ADD SP,#{}{:d}", (data.sign ? '-' : '+'), data.word);
+            return fmt::format("ADD SP,#{:d}", data.word);
         },
         [](PushPopRegister& data) {
             std::string regs;
@@ -130,18 +129,24 @@ Instruction::disassemble() {
             return fmt::format(
               "{} R{}!,{{{}}}", (data.load ? "LDMIA" : "STMIA"), data.rb, regs);
         },
-        [](SoftwareInterrupt) { return std::string("SWI"); },
-        [](ConditionalBranch& data) {
-            return fmt::format(
-              "B{} {:d}", stringify(data.condition), data.offset);
+        [](SoftwareInterrupt& data) {
+            return fmt::format("SWI {:d}", data.vector);
         },
-        [](UnconditionalBranch& data) {
-            return fmt::format("B {:d}", data.offset);
+        [pc](ConditionalBranch& data) {
+            return fmt::format(
+              "B{} #{:d}",
+              stringify(data.condition),
+              static_cast<int32_t>(data.offset + pc + 2 * INSTRUCTION_SIZE));
+        },
+        [pc](UnconditionalBranch& data) {
+            return fmt::format(
+              "B #{:d}",
+              static_cast<int32_t>(data.offset + pc + 2 * INSTRUCTION_SIZE));
         },
         [](LongBranchWithLink& data) {
             // duh this manual be empty for H = 0
             return fmt::format(
-              "BL{} {:d}", (data.high ? "H" : ""), data.offset);
+              "BL{} #{:d}", (data.high ? "H" : ""), data.offset);
         },
         [](auto) { return std::string("unknown instruction"); } },
       data);

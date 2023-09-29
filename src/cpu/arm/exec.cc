@@ -307,6 +307,7 @@ Instruction::exec(CpuImpl& cpu) {
                 }
             }
 
+            // TODO: clean this shit
             // account for decrement
             if (!data.up)
                 address -= (n_regs - 1) * alignment;
@@ -419,44 +420,6 @@ Instruction::exec(CpuImpl& cpu) {
             bool overflow = cpu.cpsr.v();
             bool carry    = cpu.cpsr.c();
 
-            auto sub = [&carry, &overflow](uint32_t a, uint32_t b) -> uint32_t {
-                bool s1 = get_bit(a, 31);
-                bool s2 = get_bit(b, 31);
-
-                uint32_t result = a - b;
-
-                carry    = b <= a;
-                overflow = s1 != s2 && s2 == get_bit(result, 31);
-                return result;
-            };
-
-            auto add = [&carry, &overflow](
-                         uint32_t a, uint32_t b, bool c = 0) -> uint32_t {
-                bool s1 = get_bit(a, 31);
-                bool s2 = get_bit(b, 31);
-
-                // 33 bits
-                uint64_t result_ = a + b + c;
-                uint32_t result  = result_ & 0xFFFFFFFF;
-
-                carry    = get_bit(result_, 32);
-                overflow = s1 == s2 && s2 != get_bit(result, 31);
-                return result;
-            };
-
-            auto sbc = [&carry,
-                        &overflow](uint32_t a, uint32_t b, bool c) -> uint32_t {
-                bool s1 = get_bit(a, 31);
-                bool s2 = get_bit(b, 31);
-
-                uint64_t result_ = a - b + c - 1;
-                uint32_t result  = result_ & 0xFFFFFFFF;
-
-                carry    = get_bit(result_, 32);
-                overflow = s1 != s2 && s2 == get_bit(result, 31);
-                return result;
-            };
-
             switch (data.opcode) {
                 case OpCode::AND:
                 case OpCode::TST:
@@ -469,23 +432,23 @@ Instruction::exec(CpuImpl& cpu) {
                     break;
                 case OpCode::SUB:
                 case OpCode::CMP:
-                    result = sub(op_1, op_2);
+                    result = sub(op_1, op_2, carry, overflow);
                     break;
                 case OpCode::RSB:
-                    result = sub(op_2, op_1);
+                    result = sub(op_2, op_1, carry, overflow);
                     break;
                 case OpCode::ADD:
                 case OpCode::CMN:
-                    result = add(op_1, op_2);
+                    result = add(op_1, op_2, carry, overflow);
                     break;
                 case OpCode::ADC:
-                    result = add(op_1, op_2, carry);
+                    result = add(op_1, op_2, carry, overflow, carry);
                     break;
                 case OpCode::SBC:
-                    result = sbc(op_1, op_2, carry);
+                    result = sbc(op_1, op_2, carry, overflow, carry);
                     break;
                 case OpCode::RSC:
-                    result = sbc(op_2, op_1, carry);
+                    result = sbc(op_2, op_1, carry, overflow, carry);
                     break;
                 case OpCode::ORR:
                     result = op_1 | op_2;

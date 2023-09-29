@@ -40,5 +40,14 @@ struct Shift {
 };
 
 uint32_t
-eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry);
+eval_shift(ShiftType shift_type, uint32_t value, uint32_t amount, bool& carry);
+
+uint32_t
+sub(uint32_t a, uint32_t b, bool& carry, bool& overflow);
+
+uint32_t
+add(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c = 0);
+
+uint32_t
+sbc(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c);
 }

@@ -1,5 +1,6 @@
 #include "instruction.hh"
 #include "util/bits.hh"
+#include "util/log.hh"
 
 namespace matar::thumb {
 Instruction::Instruction(uint16_t insn) {
@@ -55,16 +56,20 @@ Instruction::Instruction(uint16_t insn) {
         HiRegisterOperations::OpCode opcode =
           static_cast<HiRegisterOperations::OpCode>(bit_range(insn, 8, 9));
 
+        if (opcode == HiRegisterOperations::OpCode::BX && hi_1)
+            glogger.warn("H1 set with BX");
+
         rd += (hi_1 ? LO_GPR_COUNT : 0);
         rs += (hi_2 ? LO_GPR_COUNT : 0);
 
         data = HiRegisterOperations{ .rd = rd, .rs = rs, .opcode = opcode };
         // Format 6: PC-relative load
     } else if ((insn & 0xF800) == 0x4800) {
-        uint8_t word = bit_range(insn, 0, 7);
-        uint8_t rd   = bit_range(insn, 8, 10);
+        uint16_t word = bit_range(insn, 0, 7);
+        uint8_t rd    = bit_range(insn, 8, 10);
 
-        data = PcRelativeLoad{ .word = word, .rd = rd };
+        data =
+          PcRelativeLoad{ .word = static_cast<uint16_t>(word << 2), .rd = rd };
 
         // Format 7: Load/store with register offset
     } else if ((insn & 0xF200) == 0x5000) {
@@ -91,12 +96,15 @@ Instruction::Instruction(uint16_t insn) {
         };
 
         // Format 9: Load/store with immediate offset
-    } else if ((insn & 0xF000) == 0x6000) {
+    } else if ((insn & 0xE000) == 0x6000) {
         uint8_t rd     = bit_range(insn, 0, 2);
         uint8_t rb     = bit_range(insn, 3, 5);
         uint8_t offset = bit_range(insn, 6, 10);
         bool load      = get_bit(insn, 11);
         bool byte      = get_bit(insn, 12);
+
+        if (!byte)
+            offset <<= 2;
 
         data = LoadStoreImmediateOffset{
             .rd = rd, .rb = rb, .offset = offset, .load = load, .byte = byte
@@ -109,40 +117,43 @@ Instruction::Instruction(uint16_t insn) {
         uint8_t offset = bit_range(insn, 6, 10);
         bool load      = get_bit(insn, 11);
 
+        offset <<= 1;
+
         data = LoadStoreHalfword{
             .rd = rd, .rb = rb, .offset = offset, .load = load
         };
 
         // Format 11: SP-relative load/store
     } else if ((insn & 0xF000) == 0x9000) {
-        uint8_t word = bit_range(insn, 0, 7);
-        uint8_t rd   = bit_range(insn, 8, 10);
-        bool load    = get_bit(insn, 11);
+        uint16_t word = bit_range(insn, 0, 7);
+        uint8_t rd    = bit_range(insn, 8, 10);
+        bool load     = get_bit(insn, 11);
+
+        word <<= 2;
 
         data = SpRelativeLoad{ .word = word, .rd = rd, .load = load };
 
         // Format 12: Load address
     } else if ((insn & 0xF000) == 0xA000) {
-        uint8_t word = bit_range(insn, 0, 7);
-        uint8_t rd   = bit_range(insn, 8, 10);
-        bool sp      = get_bit(insn, 11);
+        uint16_t word = bit_range(insn, 0, 7);
+        uint8_t rd    = bit_range(insn, 8, 10);
+        bool sp       = get_bit(insn, 11);
 
-        data = LoadAddress{ .word = word, .rd = rd, .sp = sp };
-
-        // Format 12: Load address
-    } else if ((insn & 0xF000) == 0xA000) {
-        uint8_t word = bit_range(insn, 0, 7);
-        uint8_t rd   = bit_range(insn, 8, 10);
-        bool sp      = get_bit(insn, 11);
+        word <<= 2;
 
         data = LoadAddress{ .word = word, .rd = rd, .sp = sp };
 
         // Format 13: Add offset to stack pointer
     } else if ((insn & 0xFF00) == 0xB000) {
-        uint8_t word = bit_range(insn, 0, 6);
+        int16_t word = static_cast<int16_t>(bit_range(insn, 0, 6));
         bool sign    = get_bit(insn, 7);
 
-        data = AddOffsetStackPointer{ .word = word, .sign = sign };
+        word <<= 2;
+        word = static_cast<int16_t>(word * (sign ? -1 : 1));
+
+        data = AddOffsetStackPointer{
+            .word = word,
+        };
 
         // Format 14: Push/pop registers
     } else if ((insn & 0xF600) == 0xB400) {
@@ -162,30 +173,41 @@ Instruction::Instruction(uint16_t insn) {
 
         // Format 17: Software interrupt
     } else if ((insn & 0xFF00) == 0xDF00) {
-        data = SoftwareInterrupt{};
+        uint8_t vector = bit_range(insn, 0, 7);
+
+        data = SoftwareInterrupt{ .vector = vector };
 
         // Format 16: Conditional branch
     } else if ((insn & 0xF000) == 0xD000) {
-        uint16_t offset     = bit_range(insn, 0, 7);
+        int32_t offset      = bit_range(insn, 0, 7);
         Condition condition = static_cast<Condition>(bit_range(insn, 8, 11));
 
-        data = ConditionalBranch{ .offset = static_cast<uint16_t>(offset << 1),
-                                  .condition = condition };
+        offset <<= 1;
+
+        // sign extend the 9 bit integer
+        offset = (offset << 23) >> 23;
+
+        data = ConditionalBranch{ .offset = offset, .condition = condition };
 
         // Format 18: Unconditional branch
     } else if ((insn & 0xF800) == 0xE000) {
-        uint16_t offset = bit_range(insn, 0, 10);
+        int32_t offset = bit_range(insn, 0, 10);
 
-        data =
-          UnconditionalBranch{ .offset = static_cast<uint16_t>(offset << 1) };
+        offset <<= 1;
+
+        // sign extend the 12 bit integer
+        offset = (offset << 20) >> 20;
+
+        data = UnconditionalBranch{ .offset = offset };
 
         // Format 19: Long branch with link
     } else if ((insn & 0xF000) == 0xF000) {
         uint16_t offset = bit_range(insn, 0, 10);
         bool high       = get_bit(insn, 11);
 
-        data = LongBranchWithLink{ .offset = static_cast<uint16_t>(offset << 1),
-                                   .high   = high };
+        offset <<= 1;
+
+        data = LongBranchWithLink{ .offset = offset, .high = high };
     }
 }
 }

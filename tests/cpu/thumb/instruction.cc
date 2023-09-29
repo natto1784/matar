@@ -178,11 +178,12 @@ TEST_CASE("PC Relative Load", TAG) {
     PcRelativeLoad* ldr = nullptr;
 
     REQUIRE((ldr = std::get_if<PcRelativeLoad>(&instruction.data)));
-    CHECK(ldr->word == 230);
+    // 230 << 2
+    CHECK(ldr->word == 920);
     CHECK(ldr->rd == 2);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "LDR R2,[PC,#230]");
+    CHECK(instruction.disassemble() == "LDR R2,[PC,#920]");
 #endif
 }
 
@@ -247,21 +248,32 @@ TEST_CASE("Load/Store with Immediate Offset", TAG) {
     REQUIRE((ldr = std::get_if<LoadStoreImmediateOffset>(&instruction.data)));
     CHECK(ldr->rd == 5);
     CHECK(ldr->rb == 3);
-    CHECK(ldr->offset == 22);
+    // 22 << 4 when byte == false
+    CHECK(ldr->offset == 88);
     CHECK(ldr->byte == false);
     CHECK(ldr->load == false);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "STR R5,[R3,#22]");
+    CHECK(instruction.disassemble() == "STR R5,[R3,#88]");
 
-    ldr->byte = true;
+    ldr->load = true;
+    CHECK(instruction.disassemble() == "LDR R5,[R3,#88]");
+#endif
+
+    // byte
+    raw         = 0b0111010110011101;
+    instruction = Instruction(raw);
+
+    INFO(instruction.data.index());
+    REQUIRE((ldr = std::get_if<LoadStoreImmediateOffset>(&instruction.data)));
+    CHECK(ldr->byte == true);
+    CHECK(ldr->offset == 22);
+
+#ifdef DISASSEMBLER
     CHECK(instruction.disassemble() == "STRB R5,[R3,#22]");
 
     ldr->load = true;
     CHECK(instruction.disassemble() == "LDRB R5,[R3,#22]");
-
-    ldr->byte = false;
-    CHECK(instruction.disassemble() == "LDR R5,[R3,#22]");
 #endif
 }
 
@@ -273,14 +285,15 @@ TEST_CASE("Load/Store Halfword", TAG) {
     REQUIRE((ldr = std::get_if<LoadStoreHalfword>(&instruction.data)));
     CHECK(ldr->rd == 5);
     CHECK(ldr->rb == 3);
-    CHECK(ldr->offset == 26);
+    // 26 << 1
+    CHECK(ldr->offset == 52);
     CHECK(ldr->load == false);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "STRH R5,[R3,#26]");
+    CHECK(instruction.disassemble() == "STRH R5,[R3,#52]");
 
     ldr->load = true;
-    CHECK(instruction.disassemble() == "LDRH R5,[R3,#26]");
+    CHECK(instruction.disassemble() == "LDRH R5,[R3,#52]");
 #endif
 }
 
@@ -291,14 +304,15 @@ TEST_CASE("SP-Relative Load/Store", TAG) {
 
     REQUIRE((ldr = std::get_if<SpRelativeLoad>(&instruction.data)));
     CHECK(ldr->rd == 4);
-    CHECK(ldr->word == 157);
+    // 157 << 2
+    CHECK(ldr->word == 628);
     CHECK(ldr->load == false);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "STR R4,[SP,#157]");
+    CHECK(instruction.disassemble() == "STR R4,[SP,#628]");
 
     ldr->load = true;
-    CHECK(instruction.disassemble() == "LDR R4,[SP,#157]");
+    CHECK(instruction.disassemble() == "LDR R4,[SP,#628]");
 #endif
 }
 
@@ -308,15 +322,16 @@ TEST_CASE("Load Adress", TAG) {
     LoadAddress* add = nullptr;
 
     REQUIRE((add = std::get_if<LoadAddress>(&instruction.data)));
-    CHECK(add->word == 143);
+    // 143 << 2
+    CHECK(add->word == 572);
     CHECK(add->rd == 1);
     CHECK(add->sp == false);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "ADD R1,PC,#143");
+    CHECK(instruction.disassemble() == "ADD R1,PC,#572");
 
     add->sp = true;
-    CHECK(instruction.disassemble() == "ADD R1,SP,#143");
+    CHECK(instruction.disassemble() == "ADD R1,SP,#572");
 #endif
 }
 
@@ -326,14 +341,21 @@ TEST_CASE("Add Offset to Stack Pointer", TAG) {
     AddOffsetStackPointer* add = nullptr;
 
     REQUIRE((add = std::get_if<AddOffsetStackPointer>(&instruction.data)));
-    CHECK(add->word == 37);
-    CHECK(add->sign == false);
+    // 37 << 2
+    CHECK(add->word == 148);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "ADD SP,#+37");
+    CHECK(instruction.disassemble() == "ADD SP,#148");
+#endif
 
-    add->sign = true;
-    CHECK(instruction.disassemble() == "ADD SP,#-37");
+    raw         = 0b1011000010100101;
+    instruction = Instruction(raw);
+
+    REQUIRE((add = std::get_if<AddOffsetStackPointer>(&instruction.data)));
+    CHECK(add->word == -148);
+
+#ifdef DISASSEMBLER
+    CHECK(instruction.disassemble() == "ADD SP,#-148");
 #endif
 }
 
@@ -380,17 +402,18 @@ TEST_CASE("Multiple Load/Store", TAG) {
 }
 
 TEST_CASE("Conditional Branch", TAG) {
-    uint16_t raw = 0b1101100101110100;
+    uint16_t raw = 0b1101100110110100;
     Instruction instruction(raw);
     ConditionalBranch* b = nullptr;
 
     REQUIRE((b = std::get_if<ConditionalBranch>(&instruction.data)));
-    // 116 << 2
-    CHECK(b->offset == 232);
+    // (-76 << 1)
+    CHECK(b->offset == -152);
     CHECK(b->condition == Condition::LS);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "BLS 232");
+    // (-76 << 1) + PC (0) + 4
+    CHECK(instruction.disassemble() == "BLS #-148");
 #endif
 }
 
@@ -402,7 +425,7 @@ TEST_CASE("SoftwareInterrupt") {
     REQUIRE((swi = std::get_if<SoftwareInterrupt>(&instruction.data)));
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "SWI");
+    CHECK(instruction.disassemble() == "SWI 51");
 #endif
 }
 
@@ -412,11 +435,12 @@ TEST_CASE("Unconditional Branch") {
     UnconditionalBranch* b = nullptr;
 
     REQUIRE((b = std::get_if<UnconditionalBranch>(&instruction.data)));
-    // 1843 << 2
-    REQUIRE(b->offset == 3686);
+    // (2147483443 << 1)
+    REQUIRE(b->offset == -410);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "B 3686");
+    // (2147483443 << 1) + PC(0) + 4
+    CHECK(instruction.disassemble() == "B #-406");
 #endif
 }
 
@@ -431,10 +455,10 @@ TEST_CASE("Long Branch with link") {
     CHECK(bl->high == false);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "BL 2520");
+    CHECK(instruction.disassemble() == "BL #2520");
 
     bl->high = true;
-    CHECK(instruction.disassemble() == "BLH 2520");
+    CHECK(instruction.disassemble() == "BLH #2520");
 #endif
 }
 

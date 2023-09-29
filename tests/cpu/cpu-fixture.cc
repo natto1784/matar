@@ -1,4 +1,4 @@
-#include "fixture.hh"
+#include "cpu-fixture.hh"
 
 Psr
 CpuFixture::psr(bool spsr) {
@@ -37,7 +37,7 @@ CpuFixture::set_psr(Psr psr, bool spsr) {
 }
 
 // We need these workarounds to just use the public API and not private
-// fields. Assuming that these work correctly is necessary. Besides, all it
+// fields. Assuming that these work correctly is necessary. Besides, all that
 // matters is that the public API is correct.
 uint32_t
 CpuFixture::getr_(uint8_t r, CpuImpl& cpu) {

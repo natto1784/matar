@@ -3,7 +3,7 @@
 
 namespace matar {
 uint32_t
-eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
+eval_shift(ShiftType shift_type, uint32_t value, uint32_t amount, bool& carry) {
     uint32_t eval = 0;
 
     switch (shift_type) {
@@ -47,5 +47,44 @@ eval_shift(ShiftType shift_type, uint32_t value, uint8_t amount, bool& carry) {
     }
 
     return eval;
+}
+
+uint32_t
+sub(uint32_t a, uint32_t b, bool& carry, bool& overflow) {
+    bool s1 = get_bit(a, 31);
+    bool s2 = get_bit(b, 31);
+
+    uint32_t result = a - b;
+
+    carry    = b <= a;
+    overflow = s1 != s2 && s2 == get_bit(result, 31);
+
+    return result;
+}
+
+uint32_t
+add(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c) {
+    bool s1 = get_bit(a, 31);
+    bool s2 = get_bit(b, 31);
+
+    uint64_t result = a + b + c;
+
+    carry    = get_bit(result, 32);
+    overflow = s1 == s2 && s2 != get_bit(result, 31);
+
+    return result & 0xFFFFFFFF;
+}
+
+uint32_t
+sbc(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c) {
+    bool s1 = get_bit(a, 31);
+    bool s2 = get_bit(b, 31);
+
+    uint64_t result = a - b - !c;
+
+    carry    = get_bit(result, 32);
+    overflow = s1 != s2 && s2 == get_bit(result, 31);
+
+    return result & 0xFFFFFFFF;
 }
 }
