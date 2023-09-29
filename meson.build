@@ -24,11 +24,6 @@ else
   error(compiler.get_id() + ' ' + compiler.version() + 'does not meet the compiler requirements')
 endif
 
-if compiler.has_argument('-fexperimental-library')
-  add_global_arguments('-fexperimental-library', language: 'cpp')
-else
-  error(compiler.get_id() + ' ' + compiler.version() + 'does not support -fexperimental-library')
-endif
 '''
 
 subdir('include')

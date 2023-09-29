@@ -19,7 +19,7 @@
       packages.matar-clang = pkgs.callPackage ./build.nix { inherit src libraries stdenv; };
       devShells.matar-clang = pkgs.callPackage ./shell.nix {
         inherit libraries stdenv;
-        tools = with pkgs; [ clang-tools_16 ];
+        tools = with pkgs; [ (clang-tools_16.override { enableLibcxx = true; }) ];
       };
     };
 }
