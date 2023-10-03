@@ -1,4 +1,4 @@
-#include "alu.hh"
+#include "cpu/alu.hh"
 #include "util/bits.hh"
 
 namespace matar {

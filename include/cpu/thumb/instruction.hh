@@ -7,7 +7,7 @@
 #include <variant>
 
 namespace matar {
-class CpuImpl;
+class Cpu;
 
 namespace thumb {
 
@@ -279,7 +279,7 @@ struct Instruction {
     Instruction(InstructionData data)
       : data(data) {}
 
-    void exec(CpuImpl& cpu);
+    void exec(Cpu& cpu);
 
 #ifdef DISASSEMBLER
     std::string disassemble(uint32_t pc = 0);

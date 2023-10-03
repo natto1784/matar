@@ -1,10 +1,10 @@
-#include "cpu/cpu-impl.hh"
+#include "cpu/cpu.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
 
 namespace matar::arm {
 void
-Instruction::exec(CpuImpl& cpu) {
+Instruction::exec(Cpu& cpu) {
     if (!cpu.cpsr.condition(condition)) {
         return;
     }

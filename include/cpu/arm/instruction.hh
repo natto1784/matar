@@ -6,7 +6,7 @@
 #include <variant>
 
 namespace matar {
-class CpuImpl;
+class Cpu;
 
 namespace arm {
 
@@ -217,7 +217,7 @@ struct Instruction {
       : condition(condition)
       , data(data){};
 
-    void exec(CpuImpl& cpu);
+    void exec(Cpu& cpu);
 
 #ifdef DISASSEMBLER
     std::string disassemble();

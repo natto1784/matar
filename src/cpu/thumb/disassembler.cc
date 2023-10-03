@@ -1,4 +1,4 @@
-#include "instruction.hh"
+#include "cpu/thumb/instruction.hh"
 #include "util/bits.hh"
 
 namespace matar::thumb {

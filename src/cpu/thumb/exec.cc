@@ -1,11 +1,10 @@
-#include "cpu/cpu-impl.hh"
-#include "instruction.hh"
+#include "cpu/cpu.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
 
 namespace matar::thumb {
 void
-Instruction::exec(CpuImpl& cpu) {
+Instruction::exec(Cpu& cpu) {
     auto set_cc = [&cpu](bool c, bool v, bool n, bool z) {
         cpu.cpsr.set_c(c);
         cpu.cpsr.set_v(v);

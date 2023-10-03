@@ -7,8 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <ostream>
-#include <unistd.h>
+#include <thread>
 #include <vector>
 
 // NOLINTBEGIN
@@ -93,7 +92,7 @@ main(int argc, const char* argv[]) {
         matar::Cpu cpu(bus);
         while (true) {
             cpu.step();
-            sleep(2);
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;

@@ -3,7 +3,7 @@
 Psr
 CpuFixture::psr(bool spsr) {
     Psr psr(0);
-    CpuImpl tmp = cpu;
+    Cpu tmp = cpu;
     arm::Instruction instruction(
       Condition::AL,
       arm::PsrTransfer{ .operand = 0,
@@ -40,11 +40,11 @@ CpuFixture::set_psr(Psr psr, bool spsr) {
 // fields. Assuming that these work correctly is necessary. Besides, all that
 // matters is that the public API is correct.
 uint32_t
-CpuFixture::getr_(uint8_t r, CpuImpl& cpu) {
+CpuFixture::getr_(uint8_t r, Cpu& cpu) {
     size_t addr   = 13000;
     size_t offset = r == 15 ? 4 : 0;
     uint32_t word = bus.read_word(addr + offset);
-    CpuImpl tmp   = cpu;
+    Cpu tmp       = cpu;
     uint32_t ret  = 0xFFFFFFFF;
     uint8_t base  = r ? 0 : 1;
 
@@ -82,7 +82,7 @@ CpuFixture::getr_(uint8_t r, CpuImpl& cpu) {
 }
 
 void
-CpuFixture::setr_(uint8_t r, uint32_t value, CpuImpl& cpu) {
+CpuFixture::setr_(uint8_t r, uint32_t value, Cpu& cpu) {
     // set register
     arm::Instruction set(
       Condition::AL,

@@ -1,4 +1,4 @@
-#include "cpu/cpu-impl.hh"
+#include "cpu/cpu.hh"
 
 using namespace matar;
 
@@ -31,12 +31,12 @@ class CpuFixture {
     void set_psr(Psr psr, bool spsr = false);
 
     Bus bus;
-    CpuImpl cpu;
+    Cpu cpu;
 
   private:
     // hack to get a register
-    uint32_t getr_(uint8_t r, CpuImpl& cpu);
+    uint32_t getr_(uint8_t r, Cpu& cpu);
 
     // hack to set a register
-    void setr_(uint8_t r, uint32_t value, CpuImpl& cpu);
+    void setr_(uint8_t r, uint32_t value, Cpu& cpu);
 };

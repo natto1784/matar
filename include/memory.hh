@@ -18,17 +18,14 @@ class Memory {
     void write(size_t address, uint8_t byte);
 
   private:
-#define MEMORY_REGION(name, start, end)                                        \
-    static constexpr size_t name##_START = start;                              \
-    static constexpr size_t name##_END   = end;
+#define MEMORY_REGION(name, start) static constexpr size_t name##_START = start;
 
 #define DECL_MEMORY(name, ident, start, end)                                   \
-    MEMORY_REGION(name, start, end)                                            \
-    std::array<uint8_t, name##_END - name##_START + 1> ident;
+    MEMORY_REGION(name, start)                                                 \
+    std::array<uint8_t, end - start + 1> ident;
 
-    MEMORY_REGION(BIOS, 0x00000000, 0x00003FFF)
+    MEMORY_REGION(BIOS, 0x00000000)
     std::array<uint8_t, BIOS_SIZE> bios;
-    static_assert(BIOS_END - BIOS_START + 1 == BIOS_SIZE);
 
     // board working RAM
     DECL_MEMORY(BOARD_WRAM, board_wram, 0x02000000, 0x0203FFFF)
@@ -47,9 +44,9 @@ class Memory {
 
 #undef DECL_MEMORY
 
-    MEMORY_REGION(ROM_0, 0x08000000, 0x09FFFFFF)
-    MEMORY_REGION(ROM_1, 0x0A000000, 0x0BFFFFFF)
-    MEMORY_REGION(ROM_2, 0x0C000000, 0x0DFFFFFF)
+    MEMORY_REGION(ROM_0, 0x08000000)
+    MEMORY_REGION(ROM_1, 0x0A000000)
+    MEMORY_REGION(ROM_2, 0x0C000000)
 
 #undef MEMORY_REGION
 

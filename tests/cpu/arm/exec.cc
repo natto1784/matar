@@ -1,5 +1,4 @@
 #include "cpu/cpu-fixture.hh"
-#include "cpu/cpu-impl.hh"
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
 

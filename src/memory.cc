@@ -34,64 +34,55 @@ Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
     glogger.info("Cartridge Title: {}", header.title);
 };
 
-#define MATCHES(area) address >= area##_START&& address <= area##_END
-
 uint8_t
 Memory::read(size_t address) const {
-    if (MATCHES(BIOS)) {
-        return bios[address];
-    } else if (MATCHES(BOARD_WRAM)) {
-        return board_wram[address - BOARD_WRAM_START];
-    } else if (MATCHES(CHIP_WRAM)) {
-        return chip_wram[address - CHIP_WRAM_START];
-    } else if (MATCHES(PALETTE_RAM)) {
-        return palette_ram[address - PALETTE_RAM_START];
-    } else if (MATCHES(VRAM)) {
-        return vram[address - VRAM_START];
-    } else if (MATCHES(OAM_OBJ_ATTR)) {
-        return oam_obj_attr[address - OAM_OBJ_ATTR_START];
-    } else if (MATCHES(ROM_0)) {
-        return rom[address - ROM_0_START];
-    } else if (MATCHES(ROM_1)) {
-        return rom[address - ROM_1_START];
-    } else if (MATCHES(ROM_2)) {
-        return rom[address - ROM_2_START];
-    } else {
-        glogger.error("Invalid memory region accessed");
-        return 0xFF;
-    }
+#define MATCHES(AREA, area)                                                    \
+    if (address >= AREA##_START && address < AREA##_START + area.size())       \
+        return area[address - AREA##_START];
+
+    MATCHES(BIOS, bios)
+    MATCHES(BOARD_WRAM, board_wram)
+    MATCHES(CHIP_WRAM, chip_wram)
+    MATCHES(PALETTE_RAM, palette_ram)
+    MATCHES(VRAM, vram)
+    MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
+    MATCHES(ROM_0, rom)
+    MATCHES(ROM_1, rom)
+    MATCHES(ROM_2, rom)
+
+    glogger.error("Invalid memory region accessed");
+    return 0xFF;
+
+#undef MATCHES
 }
 
 void
 Memory::write(size_t address, uint8_t byte) {
-    if (MATCHES(BIOS)) {
-        bios[address] = byte;
-    } else if (MATCHES(BOARD_WRAM)) {
-        board_wram[address - BOARD_WRAM_START] = byte;
-    } else if (MATCHES(CHIP_WRAM)) {
-        chip_wram[address - CHIP_WRAM_START] = byte;
-    } else if (MATCHES(PALETTE_RAM)) {
-        palette_ram[address - PALETTE_RAM_START] = byte;
-    } else if (MATCHES(VRAM)) {
-        vram[address - VRAM_START] = byte;
-    } else if (MATCHES(OAM_OBJ_ATTR)) {
-        oam_obj_attr[address - OAM_OBJ_ATTR_START] = byte;
-    } else if (MATCHES(ROM_0)) {
-        rom[address - ROM_0_START] = byte;
-    } else if (MATCHES(ROM_1)) {
-        rom[address - ROM_1_START] = byte;
-    } else if (MATCHES(ROM_2)) {
-        rom[address - ROM_2_START] = byte;
-    } else {
-        glogger.error("Invalid memory region accessed");
+#define MATCHES(AREA, area)                                                    \
+    if (address >= AREA##_START && address < AREA##_START + area.size()) {     \
+        area[address - AREA##_START] = byte;                                   \
+        return;                                                                \
     }
+
+    MATCHES(BIOS, bios)
+    MATCHES(BOARD_WRAM, board_wram)
+    MATCHES(CHIP_WRAM, chip_wram)
+    MATCHES(PALETTE_RAM, palette_ram)
+    MATCHES(VRAM, vram)
+    MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
+    MATCHES(ROM_0, rom)
+    MATCHES(ROM_1, rom)
+    MATCHES(ROM_2, rom)
+
+    glogger.error("Invalid memory region accessed");
+
+#undef MATCHES
 }
 
 #undef MATCHES
 
 void
 Memory::parse_header() {
-
     if (rom.size() < header.HEADER_SIZE) {
         throw std::out_of_range(
           "ROM is not large enough to even have a header");
