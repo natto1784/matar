@@ -16,30 +16,30 @@ class BusFixture {
 };
 
 TEST_CASE_METHOD(BusFixture, "Byte", TAG) {
-    CHECK(bus.read_byte(3349) == 0);
+    CHECK(bus.read_byte(0x30001A9) == 0);
 
-    bus.write_byte(3349, 0xEC);
-    CHECK(bus.read_byte(3349) == 0xEC);
-    CHECK(bus.read_word(3349) == 0xEC);
-    CHECK(bus.read_halfword(3349) == 0xEC);
+    bus.write_byte(0x30001A9, 0xEC);
+    CHECK(bus.read_byte(0x30001A9) == 0xEC);
+    CHECK(bus.read_word(0x30001A9) == 0xEC);
+    CHECK(bus.read_halfword(0x30001A9) == 0xEC);
 }
 
 TEST_CASE_METHOD(BusFixture, "Halfword", TAG) {
-    CHECK(bus.read_halfword(33750745) == 0);
+    CHECK(bus.read_halfword(0x202FED9) == 0);
 
-    bus.write_halfword(33750745, 0x1A4A);
-    CHECK(bus.read_halfword(33750745) == 0x1A4A);
-    CHECK(bus.read_word(33750745) == 0x1A4A);
-    CHECK(bus.read_byte(33750745) == 0x4A);
+    bus.write_halfword(0x202FED9, 0x1A4A);
+    CHECK(bus.read_halfword(0x202FED9) == 0x1A4A);
+    CHECK(bus.read_word(0x202FED9) == 0x1A4A);
+    CHECK(bus.read_byte(0x202FED9) == 0x4A);
 }
 
 TEST_CASE_METHOD(BusFixture, "Word", TAG) {
-    CHECK(bus.read_word(100724276) == 0);
+    CHECK(bus.read_word(0x600EE34) == 0);
 
-    bus.write_word(100724276, 0x3ACC491D);
-    CHECK(bus.read_word(100724276) == 0x3ACC491D);
-    CHECK(bus.read_halfword(100724276) == 0x491D);
-    CHECK(bus.read_byte(100724276) == 0x1D);
+    bus.write_word(0x600EE34, 0x3ACC491D);
+    CHECK(bus.read_word(0x600EE34) == 0x3ACC491D);
+    CHECK(bus.read_halfword(0x600EE34) == 0x491D);
+    CHECK(bus.read_byte(0x600EE34) == 0x1D);
 }
 
 #undef TAG

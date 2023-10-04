@@ -282,17 +282,18 @@ Instruction::exec(Cpu& cpu) {
                 cpu.is_flushed = true;
         },
         [&cpu, pc_error](BlockDataTransfer& data) {
-            uint32_t address  = cpu.gpr[data.rn];
-            Mode mode         = cpu.cpsr.mode();
-            uint8_t alignment = 4; // word
-            uint8_t i         = 0;
-            uint8_t n_regs    = std::popcount(data.regs);
+            static constexpr uint8_t alignment = 4; // word
+
+            uint32_t address = cpu.gpr[data.rn];
+            Mode mode        = cpu.cpsr.mode();
+            uint8_t i        = 0;
+            uint8_t n_regs   = std::popcount(data.regs);
 
             pc_error(data.rn);
 
             if (cpu.cpsr.mode() == Mode::User && data.s) {
-                glogger.error("Bit S is set outside priviliged modes in {}",
-                              typeid(data).name());
+                glogger.error("Bit S is set outside priviliged modes in block "
+                              "data transfer");
             }
 
             // we just change modes to load user registers
@@ -301,9 +302,8 @@ Instruction::exec(Cpu& cpu) {
                 cpu.chg_mode(Mode::User);
 
                 if (data.write) {
-                    glogger.error(
-                      "Write-back enable for user bank registers in {}",
-                      typeid(data).name());
+                    glogger.error("Write-back enable for user bank registers "
+                                  "in block data transfer");
                 }
             }
 

@@ -1,6 +1,8 @@
+#include "cpu/arm/instruction.hh"
 #include "cpu/cpu-fixture.hh"
 #include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 
 using namespace matar;
 
@@ -170,7 +172,7 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Swap", TAG) {
       SingleDataSwap{ .rm = 3, .rd = 4, .rn = 9, .byte = false };
     SingleDataSwap* swap = std::get_if<SingleDataSwap>(&data);
 
-    setr(9, 0x3FED);
+    setr(9, 0x3003FED);
     setr(3, 94235087);
     setr(3, -259039045);
     bus.write_word(getr(9), 3241011111);
@@ -210,14 +212,14 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
                           .pre    = true };
     SingleDataTransfer* data_transfer = std::get_if<SingleDataTransfer>(&data);
 
-    setr(3, 1596);
-    setr(7, 6);
+    setr(3, 0x63C);
+    setr(7, 0x3000004);
     setr(5, -911111);
 
     // shifted register (immediate)
     {
-        // 12768 + 6
-        bus.write_word(12774, 95995);
+        // 0x31E + 0x3000004
+        bus.write_word(0x30031E4, 95995);
         exec(data);
 
         CHECK(getr(5) == 95995);
@@ -234,8 +236,8 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
                                        } };
 
         setr(12, 2);
-        // 6384 + 6
-        bus.write_word(6390, 3948123487);
+        // 6384 + 0x3000004
+        bus.write_word(0x30018F4, 3948123487);
         exec(data);
 
         CHECK(getr(5) == 3948123487);
@@ -243,9 +245,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
     // immediate
     {
-        data_transfer->offset = static_cast<uint16_t>(3489);
-        // 6 + 3489
-        bus.write_word(3495, 68795467);
+        data_transfer->offset = static_cast<uint16_t>(0xDA1);
+        // 0xDA1 + 0x3000004
+        bus.write_word(0x3000DA5, 68795467);
 
         exec(data);
 
@@ -254,41 +256,42 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
     // down
     {
-        setr(7, 18044);
+        setr(7, 0x3005E0D);
         data_transfer->up = false;
-        // 18044 - 3489
-        bus.write_word(14555, 5949595);
+        // 0x3005E0D - 0xDA1
+        bus.write_word(0x300506C, 5949595);
 
         exec(data);
 
         CHECK(getr(5) == 5949595);
         // no write back
-        CHECK(getr(7) == 18044);
+        CHECK(getr(7) == 0x3005E0D);
     }
 
     // write
     {
         data_transfer->write = true;
-        bus.write_word(14555, 967844);
+        // 0x3005E0D - 0xDA1
+        bus.write_word(0x300506C, 967844);
 
         exec(data);
 
         CHECK(getr(5) == 967844);
-        // 18044 - 3489
-        CHECK(getr(7) == 14555);
+        // 0x3005E0D - 0xDA1
+        CHECK(getr(7) == 0x300506C);
     }
 
     // post
     {
         data_transfer->write = false;
         data_transfer->pre   = false;
-        bus.write_word(14555, 61119);
+        bus.write_word(0x300506C, 61119);
 
         exec(data);
 
         CHECK(getr(5) == 61119);
-        // 14555 - 3489
-        CHECK(getr(7) == 11066);
+        // 0x300506C - 0xDA1
+        CHECK(getr(7) == 0x30042CB);
     }
 
     // store
@@ -297,21 +300,21 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus.read_word(11066) == 61119);
-        // 11066 - 3489
-        CHECK(getr(7) == 7577);
+        CHECK(bus.read_word(0x30042CB) == 61119);
+        // 0x30042CB - 0xDA1
+        CHECK(getr(7) == 0x300352A);
     }
 
     // r15 as rn
     {
         data_transfer->rn = 15;
-        setr(15, 7577);
+        setr(15, 0x300352A);
 
         exec(data);
 
-        CHECK(bus.read_word(7577 - 2 * INSTRUCTION_SIZE) == 61119);
-        // 7577 - 3489
-        CHECK(getr(15) == 4088 - 2 * INSTRUCTION_SIZE);
+        CHECK(bus.read_word(0x300352A - 2 * INSTRUCTION_SIZE) == 61119);
+        // 0x300352A - 0xDA1
+        CHECK(getr(15) == 0x3002789 - 2 * INSTRUCTION_SIZE);
 
         // cleanup
         data_transfer->rn = 7;
@@ -319,15 +322,14 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
     // r15 as rd
     {
-        // 4088
         data_transfer->rd = 15;
         setr(15, 444444);
 
         exec(data);
 
-        CHECK(bus.read_word(7577 + INSTRUCTION_SIZE) == 444444);
-        // 7577 - 3489
-        CHECK(getr(7) == 4088 + INSTRUCTION_SIZE);
+        CHECK(bus.read_word(0x300352A + INSTRUCTION_SIZE) == 444444);
+        // 0x300352A - 0xDA1
+        CHECK(getr(7) == 0x3002789 + INSTRUCTION_SIZE);
 
         // cleanup
         data_transfer->rd = 5;
@@ -342,9 +344,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus.read_word(4088) == (458267584 & 0xFF));
-        // 4088 - 3489
-        CHECK(getr(7) == 599);
+        CHECK(bus.read_word(0x3002789) == (458267584 & 0xFF));
+        // 0x3002789 - 0xDA1
+        CHECK(getr(7) == 0x30019E8);
     }
 }
 
@@ -361,14 +363,14 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
                                                       .pre    = true };
     HalfwordTransfer* hw_transfer = std::get_if<HalfwordTransfer>(&data);
 
-    setr(12, 8404);
+    setr(12, 0x384);
     setr(11, 459058287);
-    setr(10, 900);
+    setr(10, 0x300611E);
 
     // register offset
     {
-        // 900 + 8404
-        bus.write_word(9304, 3948123487);
+        //  0x300611E  + 0x384
+        bus.write_word(0x30064A2, 3948123487);
         exec(data);
 
         CHECK(getr(11) == (3948123487 & 0xFFFF));
@@ -377,9 +379,9 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
     // immediate offset
     {
         hw_transfer->imm    = true;
-        hw_transfer->offset = 167;
-        // 900 + 167
-        bus.write_word(1067, 594633302);
+        hw_transfer->offset = 0xA7;
+        // 0x300611E + 0xA7
+        bus.write_word(0x30061C5, 594633302);
         exec(data);
 
         CHECK(getr(11) == (594633302 & 0xFFFF));
@@ -388,40 +390,39 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
     // down
     {
         hw_transfer->up = false;
-        // 900 - 167
-        bus.write_word(733, 222221);
+        // 0x300611E - 0xA7
+        bus.write_word(0x3006077, 222221);
 
         exec(data);
 
         CHECK(getr(11) == (222221 & 0xFFFF));
         // no write back
-        CHECK(getr(10) == 900);
+        CHECK(getr(10) == 0x300611E);
     }
 
     // write
     {
         hw_transfer->write = true;
-        // 900 - 167
-        bus.write_word(733, 100000005);
+        // 0x300611E - 0xA7
+        bus.write_word(0x3006077, 100000005);
 
         exec(data);
 
         CHECK(getr(11) == (100000005 & 0xFFFF));
-        // 900 - 167
-        CHECK(getr(10) == 733);
+        CHECK(getr(10) == 0x3006077);
     }
 
     // post
     {
         hw_transfer->pre   = false;
         hw_transfer->write = false;
-        bus.write_word(733, 6111909);
+        bus.write_word(0x3006077, 6111909);
 
         exec(data);
 
         CHECK(getr(11) == (6111909 & 0xFFFF));
-        // 733 - 167
-        CHECK(getr(10) == 566);
+        // 0x3006077 - 0xA7
+        CHECK(getr(10) == 0x3005FD0);
     }
 
     // store
@@ -430,22 +431,22 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus.read_halfword(566) == (6111909 & 0xFFFF));
-        // 566 - 167
-        CHECK(getr(10) == 399);
+        CHECK(bus.read_halfword(0x3005FD0) == (6111909 & 0xFFFF));
+        // 0x3005FD0 - 0xA7
+        CHECK(getr(10) == 0x3005F29);
     }
 
     // r15 as rn
     {
         hw_transfer->rn = 15;
-        setr(15, 399);
+        setr(15, 0x3005F29);
 
         exec(data);
 
-        CHECK(bus.read_halfword(399 - 2 * INSTRUCTION_SIZE) ==
+        CHECK(bus.read_halfword(0x3005F29 - 2 * INSTRUCTION_SIZE) ==
               (6111909 & 0xFFFF));
-        // 399 - 167
-        CHECK(getr(15) == 232 - 2 * INSTRUCTION_SIZE);
+        // 0x3005F29 - 0xA7
+        CHECK(getr(15) == 0x3005E82 - 2 * INSTRUCTION_SIZE);
 
         // cleanup
         hw_transfer->rn = 10;
@@ -458,38 +459,38 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus.read_halfword(399 + INSTRUCTION_SIZE) == 224);
-        // 399 - 167
-        CHECK(getr(10) == 232 + INSTRUCTION_SIZE);
+        CHECK(bus.read_halfword(0x3005F29 + INSTRUCTION_SIZE) == 224);
+        // 0x3005F29 - 0xA7
+        CHECK(getr(10) == 0x3005E82 + INSTRUCTION_SIZE);
 
         // cleanup
         hw_transfer->rd = 11;
-        setr(10, 399);
+        setr(10, getr(10) - INSTRUCTION_SIZE);
     }
 
     // signed halfword
     {
         hw_transfer->load = true;
         hw_transfer->sign = true;
-        bus.write_halfword(399, -12345);
+        bus.write_halfword(0x3005E82, -12345);
 
         exec(data);
 
         CHECK(getr(11) == static_cast<uint32_t>(-12345));
-        // 399 - 167
-        CHECK(getr(10) == 232);
+        // 0x3005E82 - 0xA7
+        CHECK(getr(10) == 0x3005DDB);
     }
 
     // signed byte
     {
         hw_transfer->half = false;
-        bus.write_byte(232, -56);
+        bus.write_byte(0x3005DDB, -56);
 
         exec(data);
 
         CHECK(getr(11) == static_cast<uint32_t>(-56));
-        // 232 - 167
-        CHECK(getr(10) == 65);
+        // 0x3005DDB - 0xA7
+        CHECK(getr(10) == 0x3005D34);
     }
 }
 
@@ -502,19 +503,21 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
                                               .up    = true,
                                               .pre   = true };
 
-    BlockDataTransfer* block_transfer = std::get_if<BlockDataTransfer>(&data);
+    BlockDataTransfer* block_transfer  = std::get_if<BlockDataTransfer>(&data);
+    static constexpr uint8_t alignment = 4;
 
     // load
     SECTION("load") {
+        static constexpr uint32_t address = 0x3000D78;
         // populate memory
-        bus.write_word(3448, 38947234);
-        bus.write_word(3452, 237164);
-        bus.write_word(3456, 679785111);
-        bus.write_word(3460, 905895898);
-        bus.write_word(3464, 131313333);
-        bus.write_word(3468, 131);
-        bus.write_word(3472, 989231);
-        bus.write_word(3476, 6);
+        bus.write_word(address, 38947234);
+        bus.write_word(address + alignment, 237164);
+        bus.write_word(address + alignment * 2, 679785111);
+        bus.write_word(address + alignment * 3, 905895898);
+        bus.write_word(address + alignment * 4, 131313333);
+        bus.write_word(address + alignment * 5, 131);
+        bus.write_word(address + alignment * 6, 989231);
+        bus.write_word(address + alignment * 7, 6);
 
         auto checker = [this](uint32_t rnval = 0) {
             CHECK(getr(0) == 237164);
@@ -539,45 +542,45 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
             }
         };
 
-        setr(10, 3448);
+        setr(10, address);
         exec(data);
-        checker(3448);
+        checker(address);
 
         // with write
-        setr(10, 3448);
+        setr(10, address);
         block_transfer->write = true;
         exec(data);
-        checker(3448 + INSTRUCTION_SIZE);
+        checker(address + alignment);
 
         // decrement
         block_transfer->write = false;
         block_transfer->up    = false;
         // adjust rn
-        setr(10, 3480);
+        setr(10, address + alignment * 8);
         exec(data);
-        checker(3480);
+        checker(address + alignment * 8);
 
         // with write
-        setr(10, 3480);
+        setr(10, 0x3000D98);
         block_transfer->write = true;
         exec(data);
-        checker(3480 - INSTRUCTION_SIZE);
+        checker(address + alignment * 7);
 
         // post increment
         block_transfer->write = false;
         block_transfer->up    = true;
         block_transfer->pre   = false;
         // adjust rn
-        setr(10, 3452);
+        setr(10, address + alignment);
         exec(data);
-        checker(3452 + INSTRUCTION_SIZE);
+        checker(address + alignment * 2);
 
         // post decrement
         block_transfer->up = false;
         // adjust rn
-        setr(10, 3476);
+        setr(10, address + alignment * 7);
         exec(data);
-        checker(3476 - INSTRUCTION_SIZE);
+        checker(address + alignment * 6);
 
         // with s bit
         cpu.chg_mode(Mode::Fiq);
@@ -589,6 +592,8 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
 
     // store
     SECTION("store") {
+        static constexpr uint32_t address = 0x30015A8;
+
         block_transfer->load = false;
 
         // populate registers
@@ -601,19 +606,19 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         setr(15, 6);
 
         auto checker = [this]() {
-            CHECK(bus.read_word(5548) == 237164);
-            CHECK(bus.read_word(5552) == 679785111);
-            CHECK(bus.read_word(5556) == 905895898);
-            CHECK(bus.read_word(5560) == 131313333);
-            CHECK(bus.read_word(5564) == 131);
-            CHECK(bus.read_word(5568) == 989231);
-            CHECK(bus.read_word(5572) == 6);
+            CHECK(bus.read_word(address + alignment) == 237164);
+            CHECK(bus.read_word(address + alignment * 2) == 679785111);
+            CHECK(bus.read_word(address + alignment * 3) == 905895898);
+            CHECK(bus.read_word(address + alignment * 4) == 131313333);
+            CHECK(bus.read_word(address + alignment * 5) == 131);
+            CHECK(bus.read_word(address + alignment * 6) == 989231);
+            CHECK(bus.read_word(address + alignment * 7) == 6);
 
-            for (uint8_t i = 0; i < 8; i++)
-                bus.write_word(5548 + i * 4, 0);
+            for (uint8_t i = 1; i < 8; i++)
+                bus.write_word(address + alignment * i, 0);
         };
 
-        setr(10, 5544); // base
+        setr(10, address); // base
         exec(data);
         checker();
 
@@ -621,7 +626,7 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         block_transfer->write = false;
         block_transfer->up    = false;
         // adjust rn
-        setr(10, 5576);
+        setr(10, address + alignment * 8);
         exec(data);
         checker();
 
@@ -629,24 +634,23 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         block_transfer->up  = true;
         block_transfer->pre = false;
         // adjust rn
-        setr(10, 5548);
+        setr(10, address + alignment);
         exec(data);
         checker();
 
         // post decrement
         block_transfer->up = false;
         // adjust rn
-        setr(10, 5572);
+        setr(10, address + alignment * 7);
         exec(data);
         checker();
 
         // with s bit
         cpu.chg_mode(Mode::Fiq);
         block_transfer->s = true;
-        cpu.chg_mode(Mode::Supervisor);
-        // User's R13 is different (unset at this point)
-        CHECK(bus.read_word(5568) == 0);
         exec(data);
+        // User's R13 is different (unset at this point)
+        CHECK(bus.read_word(address + alignment * 6) == 0);
     }
 }
 

@@ -286,47 +286,51 @@ Instruction::exec(Cpu& cpu) {
         },
         [&cpu](AddOffsetStackPointer& data) { cpu.sp += data.word; },
         [&cpu](PushPopRegister& data) {
+            static constexpr uint8_t alignment = 4;
+
             if (data.load) {
                 for (uint8_t i = 0; i < 8; i++) {
                     if (get_bit(data.regs, i)) {
                         cpu.gpr[i] = cpu.bus->read_word(cpu.sp);
-                        cpu.sp += 4;
+                        cpu.sp += alignment;
                     }
                 }
 
                 if (data.pclr) {
                     cpu.pc = cpu.bus->read_word(cpu.sp);
-                    cpu.sp += 4;
+                    cpu.sp += alignment;
                     cpu.is_flushed = true;
                 }
             } else {
                 if (data.pclr) {
-                    cpu.sp -= 4;
+                    cpu.sp -= alignment;
                     cpu.bus->write_word(cpu.sp, cpu.lr);
                 }
 
                 for (int8_t i = 7; i >= 0; i--) {
                     if (get_bit(data.regs, i)) {
-                        cpu.sp -= 4;
+                        cpu.sp -= alignment;
                         cpu.bus->write_word(cpu.sp, cpu.gpr[i]);
                     }
                 }
             }
         },
         [&cpu](MultipleLoad& data) {
+            static constexpr uint8_t alignment = 4;
+
             uint32_t rb = cpu.gpr[data.rb];
 
             if (data.load) {
                 for (uint8_t i = 0; i < 8; i++) {
                     if (get_bit(data.regs, i)) {
                         cpu.gpr[i] = cpu.bus->read_word(rb);
-                        rb += 4;
+                        rb += alignment;
                     }
                 }
             } else {
                 for (int8_t i = 7; i >= 0; i--) {
                     if (get_bit(data.regs, i)) {
-                        rb -= 4;
+                        rb -= alignment;
                         cpu.bus->write_word(rb, cpu.gpr[i]);
                     }
                 }

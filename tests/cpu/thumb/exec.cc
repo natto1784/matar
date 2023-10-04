@@ -528,11 +528,11 @@ TEST_CASE_METHOD(CpuFixture, "Hi Register Operations/Branch Exchange", TAG) {
 }
 
 TEST_CASE_METHOD(CpuFixture, "PC Relative Load", TAG) {
-    InstructionData data = PcRelativeLoad{ .word = 380, .rd = 0 };
+    InstructionData data = PcRelativeLoad{ .word = 0x578, .rd = 0 };
 
-    setr(15, 13804);
-    // 13804 + 380
-    bus.write_word(14184, 489753492);
+    setr(15, 0x3003FD5);
+    // 0x3003FD5 + 0x578
+    bus.write_word(0x300454D, 489753492);
 
     CHECK(getr(0) == 0);
     exec(data);
@@ -545,26 +545,26 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Register Offset", TAG) {
     };
     LoadStoreRegisterOffset* load = std::get_if<LoadStoreRegisterOffset>(&data);
 
-    setr(7, 9910);
-    setr(0, 1034);
+    setr(7, 0x3003000);
+    setr(0, 0x332);
     setr(3, 389524259);
 
     SECTION("store") {
-        // 9910 + 1034
-        CHECK(bus.read_word(10944) == 0);
+        // 0x3003000 + 0x332
+        CHECK(bus.read_word(0x3003332) == 0);
         exec(data);
-        CHECK(bus.read_word(10944) == 389524259);
+        CHECK(bus.read_word(0x3003332) == 389524259);
 
         // byte
         load->byte = true;
-        bus.write_word(10944, 0);
+        bus.write_word(0x3003332, 0);
         exec(data);
-        CHECK(bus.read_word(10944) == 35);
+        CHECK(bus.read_word(0x3003332) == 35);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(10944, 11123489);
+        bus.write_word(0x3003332, 11123489);
         exec(data);
         CHECK(getr(3) == 11123489);
 
@@ -582,27 +582,27 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
     LoadStoreSignExtendedHalfword* load =
       std::get_if<LoadStoreSignExtendedHalfword>(&data);
 
-    setr(7, 9910);
-    setr(0, 1034);
+    setr(7, 0x3003000);
+    setr(0, 0x332);
     setr(3, 389524259);
 
     SECTION("SH = 00") {
-        // 9910 + 1034
-        CHECK(bus.read_word(10944) == 0);
+        // 0x3003000 + 0x332
+        CHECK(bus.read_word(0x3003332) == 0);
         exec(data);
-        CHECK(bus.read_word(10944) == 43811);
+        CHECK(bus.read_word(0x3003332) == 43811);
     }
 
     SECTION("SH = 01") {
         load->h = true;
-        bus.write_word(10944, 11123489);
+        bus.write_word(0x3003332, 11123489);
         exec(data);
         CHECK(getr(3) == 47905);
     }
 
     SECTION("SH = 10") {
         load->s = true;
-        bus.write_word(10944, 34521594);
+        bus.write_word(0x3003332, 34521594);
         exec(data);
         // sign extended 250 byte (0xFA)
         CHECK(getr(3) == 4294967290);
@@ -611,7 +611,7 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
     SECTION("SH = 11") {
         load->s = true;
         load->h = true;
-        bus.write_word(10944, 11123489);
+        bus.write_word(0x3003332, 11123489);
         // sign extended 47905 halfword (0xBB21)
         exec(data);
         CHECK(getr(3) == 4294949665);
@@ -620,30 +620,30 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
 
 TEST_CASE_METHOD(CpuFixture, "Load/Store with Immediate Offset", TAG) {
     InstructionData data = LoadStoreImmediateOffset{
-        .rd = 3, .rb = 0, .offset = 110, .load = false, .byte = false
+        .rd = 3, .rb = 0, .offset = 0x6E, .load = false, .byte = false
     };
     LoadStoreImmediateOffset* load =
       std::get_if<LoadStoreImmediateOffset>(&data);
 
-    setr(0, 1034);
+    setr(0, 0x300666A);
     setr(3, 389524259);
 
     SECTION("store") {
-        // 110 + 1034
-        CHECK(bus.read_word(1144) == 0);
+        // 0x30066A + 0x6E
+        CHECK(bus.read_word(0x30066D8) == 0);
         exec(data);
-        CHECK(bus.read_word(1144) == 389524259);
+        CHECK(bus.read_word(0x30066D8) == 389524259);
 
         // byte
         load->byte = true;
-        bus.write_word(1144, 0);
+        bus.write_word(0x30066D8, 0);
         exec(data);
-        CHECK(bus.read_word(1144) == 35);
+        CHECK(bus.read_word(0x30066D8) == 35);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(1144, 11123489);
+        bus.write_word(0x30066D8, 11123489);
         exec(data);
         CHECK(getr(3) == 11123489);
 
@@ -656,22 +656,22 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Immediate Offset", TAG) {
 
 TEST_CASE_METHOD(CpuFixture, "Load/Store Halfword", TAG) {
     InstructionData data =
-      LoadStoreHalfword{ .rd = 3, .rb = 0, .offset = 110, .load = false };
+      LoadStoreHalfword{ .rd = 3, .rb = 0, .offset = 0x6E, .load = false };
     LoadStoreHalfword* load = std::get_if<LoadStoreHalfword>(&data);
 
-    setr(0, 1034);
+    setr(0, 0x300666A);
     setr(3, 389524259);
 
     SECTION("store") {
-        // 110 + 1034
-        CHECK(bus.read_word(1144) == 0);
+        // 0x300666A + 0x6E
+        CHECK(bus.read_word(0x30066D8) == 0);
         exec(data);
-        CHECK(bus.read_word(1144) == 43811);
+        CHECK(bus.read_word(0x30066D8) == 43811);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(1144, 11123489);
+        bus.write_word(0x30066D8, 11123489);
         exec(data);
         CHECK(getr(3) == 47905);
     }
@@ -679,23 +679,23 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Halfword", TAG) {
 
 TEST_CASE_METHOD(CpuFixture, "SP Relative Load", TAG) {
     InstructionData data =
-      SpRelativeLoad{ .word = 808, .rd = 1, .load = false };
+      SpRelativeLoad{ .word = 0x328, .rd = 1, .load = false };
     SpRelativeLoad* load = std::get_if<SpRelativeLoad>(&data);
 
     setr(1, 2349505744);
     // sp
-    setr(13, 336);
+    setr(13, 0x3004A8A);
 
     SECTION("store") {
-        // 110 + 1034
-        CHECK(bus.read_word(1144) == 0);
+        // 0x3004A8A + 0x328
+        CHECK(bus.read_word(0x3004DB2) == 0);
         exec(data);
-        CHECK(bus.read_word(1144) == 2349505744);
+        CHECK(bus.read_word(0x3004DB2) == 2349505744);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(1144, 11123489);
+        bus.write_word(0x3004DB2, 11123489);
         exec(data);
         CHECK(getr(1) == 11123489);
     }
@@ -745,8 +745,11 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
     InstructionData data =
       PushPopRegister{ .regs = 0b11010011, .pclr = false, .load = false };
     PushPopRegister* push = std::get_if<PushPopRegister>(&data);
-    // registers = 0, 1, 4, 6, 7
 
+    static constexpr uint8_t alignment = 4;
+    static constexpr uint32_t address  = 0x30015AC;
+
+    // registers = 0, 1, 4, 6, 7
     SECTION("push (store)") {
 
         // populate registers
@@ -758,33 +761,33 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
 
         auto checker = [this]() {
             // address
-            CHECK(bus.read_word(5548) == 237164);
-            CHECK(bus.read_word(5552) == 679785111);
-            CHECK(bus.read_word(5556) == 905895898);
-            CHECK(bus.read_word(5560) == 131313333);
-            CHECK(bus.read_word(5564) == 131);
+            CHECK(bus.read_word(address) == 237164);
+            CHECK(bus.read_word(address + alignment) == 679785111);
+            CHECK(bus.read_word(address + alignment * 2) == 905895898);
+            CHECK(bus.read_word(address + alignment * 3) == 131313333);
+            CHECK(bus.read_word(address + alignment * 4) == 131);
         };
 
         // set stack pointer to top of stack
-        setr(13, 5568);
+        setr(13, address + alignment * 5);
 
         SECTION("without LR") {
             exec(data);
             checker();
-            CHECK(getr(13) == 5548);
+            CHECK(getr(13) == address);
         }
 
         SECTION("with LR") {
             push->pclr = true;
             // populate lr
             setr(14, 999304);
-            // add another word on stack (5568 + 4)
-            setr(13, 5572);
+            // add another word on stack (top + 4)
+            setr(13, address + alignment * 6);
             exec(data);
 
-            CHECK(bus.read_word(5568) == 999304);
+            CHECK(bus.read_word(address + alignment * 5) == 999304);
             checker();
-            CHECK(getr(13) == 5548);
+            CHECK(getr(13) == address);
         }
     }
 
@@ -792,11 +795,11 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
         push->load = true;
 
         // populate memory
-        bus.write_word(5548, 237164);
-        bus.write_word(5552, 679785111);
-        bus.write_word(5556, 905895898);
-        bus.write_word(5560, 131313333);
-        bus.write_word(5564, 131);
+        bus.write_word(address, 237164);
+        bus.write_word(address + alignment, 679785111);
+        bus.write_word(address + alignment * 2, 905895898);
+        bus.write_word(address + alignment * 3, 131313333);
+        bus.write_word(address + alignment * 4, 131);
 
         auto checker = [this]() {
             CHECK(getr(0) == 237164);
@@ -814,23 +817,23 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
         };
 
         // set stack pointer to bottom of stack
-        setr(13, 5548);
+        setr(13, address);
 
         SECTION("without SP") {
             exec(data);
             checker();
-            CHECK(getr(13) == 5568);
+            CHECK(getr(13) == address + alignment * 5);
         }
 
         SECTION("with SP") {
             push->pclr = true;
             // populate next address
-            bus.write_word(5568, 93333912);
+            bus.write_word(address + alignment * 5, 93333912);
             exec(data);
 
             CHECK(getr(15) == 93333912);
             checker();
-            CHECK(getr(13) == 5572);
+            CHECK(getr(13) == address + alignment * 6);
         }
     }
 }
@@ -841,7 +844,10 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
     MultipleLoad* push = std::get_if<MultipleLoad>(&data);
     // registers = 0, 1, 4, 6, 7
 
-    SECTION("push (store)") {
+    static constexpr uint8_t alignment = 4;
+    static constexpr uint32_t address  = 0x30015AC;
+
+    SECTION("store") {
 
         // populate registers
         setr(0, 237164);
@@ -850,36 +856,36 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
         setr(7, 131);
 
         // set R2 (base) to top of stack
-        setr(2, 5568);
+        setr(2, address + alignment * 5);
 
         exec(data);
 
-        CHECK(bus.read_word(5548) == 237164);
-        CHECK(bus.read_word(5552) == 5568);
-        CHECK(bus.read_word(5556) == 905895898);
-        CHECK(bus.read_word(5560) == 131313333);
-        CHECK(bus.read_word(5564) == 131);
+        CHECK(bus.read_word(address) == 237164);
+        CHECK(bus.read_word(address + alignment) == address + alignment * 5);
+        CHECK(bus.read_word(address + alignment * 2) == 905895898);
+        CHECK(bus.read_word(address + alignment * 3) == 131313333);
+        CHECK(bus.read_word(address + alignment * 4) == 131);
         // write back
-        CHECK(getr(2) == 5548);
+        CHECK(getr(2) == address);
     }
 
-    SECTION("pop (load)") {
+    SECTION("load") {
         push->load = true;
 
         // populate memory
-        bus.write_word(5548, 237164);
-        bus.write_word(5552, 679785111);
-        bus.write_word(5556, 905895898);
-        bus.write_word(5560, 131313333);
-        bus.write_word(5564, 131);
+        bus.write_word(address, 237164);
+        bus.write_word(address + alignment, 679785111);
+        bus.write_word(address + alignment * 2, 905895898);
+        bus.write_word(address + alignment * 3, 131313333);
+        bus.write_word(address + alignment * 4, 131);
 
         // base
-        setr(2, 5548);
+        setr(2, address);
 
         exec(data);
         CHECK(getr(0) == 237164);
         CHECK(getr(1) == 0);
-        CHECK(getr(2) == 5568); // write back
+        CHECK(getr(2) == address + alignment * 5); // write back
         CHECK(getr(3) == 0);
         CHECK(getr(4) == 905895898);
         CHECK(getr(5) == 0);

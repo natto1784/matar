@@ -64,22 +64,16 @@ Memory::write(size_t address, uint8_t byte) {
         return;                                                                \
     }
 
-    MATCHES(BIOS, bios)
     MATCHES(BOARD_WRAM, board_wram)
     MATCHES(CHIP_WRAM, chip_wram)
     MATCHES(PALETTE_RAM, palette_ram)
     MATCHES(VRAM, vram)
     MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
-    MATCHES(ROM_0, rom)
-    MATCHES(ROM_1, rom)
-    MATCHES(ROM_2, rom)
 
     glogger.error("Invalid memory region accessed");
 
 #undef MATCHES
 }
-
-#undef MATCHES
 
 void
 Memory::parse_header() {

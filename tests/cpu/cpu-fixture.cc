@@ -41,17 +41,17 @@ CpuFixture::set_psr(Psr psr, bool spsr) {
 // matters is that the public API is correct.
 uint32_t
 CpuFixture::getr_(uint8_t r, Cpu& cpu) {
-    size_t addr   = 13000;
-    size_t offset = r == 15 ? 4 : 0;
-    uint32_t word = bus.read_word(addr + offset);
-    Cpu tmp       = cpu;
-    uint32_t ret  = 0xFFFFFFFF;
-    uint8_t base  = r ? 0 : 1;
+    uint32_t addr  = 0x02000000;
+    uint8_t offset = r == 15 ? 4 : 0;
+    uint32_t word  = bus.read_word(addr + offset);
+    Cpu tmp        = cpu;
+    uint32_t ret   = 0xFFFFFFFF;
+    uint8_t base   = r ? 0 : 1;
 
-    // set R0/R1 = 0
+    // set R0/R1 = addr
     arm::Instruction zero(
       Condition::AL,
-      arm::DataProcessing{ .operand = 0u,
+      arm::DataProcessing{ .operand = addr,
                            .rd      = base,
                            .rn      = 0,
                            .set     = false,
@@ -60,7 +60,7 @@ CpuFixture::getr_(uint8_t r, Cpu& cpu) {
     // get register
     arm::Instruction get(
       Condition::AL,
-      arm::SingleDataTransfer{ .offset = static_cast<uint16_t>(addr),
+      arm::SingleDataTransfer{ .offset = static_cast<uint16_t>(0),
                                .rd     = r,
                                .rn     = base,
                                .load   = false,

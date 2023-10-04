@@ -15,14 +15,18 @@ class MemFixture {
     Memory memory;
 };
 
-TEST_CASE_METHOD(MemFixture, "bios", TAG) {
-    memory.write(0, 0xAC);
+TEST_CASE("bios", TAG) {
+    std::array<uint8_t, Memory::BIOS_SIZE> bios = { 0 };
+
+    // populate bios
+    bios[0]      = 0xAC;
+    bios[0x3FFF] = 0x48;
+    bios[0x2A56] = 0x10;
+
+    Memory memory(std::move(bios), std::vector<uint8_t>(Header::HEADER_SIZE));
+
     CHECK(memory.read(0) == 0xAC);
-
-    memory.write(0x3FFF, 0x48);
     CHECK(memory.read(0x3FFF) == 0x48);
-
-    memory.write(0x2A56, 0x10);
     CHECK(memory.read(0x2A56) == 0x10);
 }
 
@@ -82,40 +86,31 @@ TEST_CASE_METHOD(MemFixture, "oam obj ram", TAG) {
 }
 
 TEST_CASE("rom", TAG) {
+    std::vector<uint8_t> rom(32 * 1024 * 1024, 0);
+
+    // populate rom
+    rom[0]         = 0xAC;
+    rom[0x1FFFFFF] = 0x48;
+    rom[0x0EF0256] = 0x10;
+
     // 32 megabyte ROM
-    Memory memory(std::array<uint8_t, Memory::BIOS_SIZE>(),
-                  std::vector<uint8_t>(32 * 1024 * 1024));
+    Memory memory(std::array<uint8_t, Memory::BIOS_SIZE>(), std::move(rom));
 
     SECTION("ROM1") {
-        memory.write(0x8000000, 0xAC);
         CHECK(memory.read(0x8000000) == 0xAC);
-
-        memory.write(0x9FFFFFF, 0x48);
         CHECK(memory.read(0x9FFFFFF) == 0x48);
-
-        memory.write(0x8ef0256, 0x10);
-        CHECK(memory.read(0x8ef0256) == 0x10);
+        CHECK(memory.read(0x8EF0256) == 0x10);
     }
 
     SECTION("ROM2") {
-        memory.write(0xA000000, 0xAC);
         CHECK(memory.read(0xA000000) == 0xAC);
-
-        memory.write(0xBFFFFFF, 0x48);
         CHECK(memory.read(0xBFFFFFF) == 0x48);
-
-        memory.write(0xAEF0256, 0x10);
         CHECK(memory.read(0xAEF0256) == 0x10);
     }
 
     SECTION("ROM3") {
-        memory.write(0xC000000, 0xAC);
         CHECK(memory.read(0xC000000) == 0xAC);
-
-        memory.write(0xDFFFFFF, 0x48);
         CHECK(memory.read(0xDFFFFFF) == 0x48);
-
-        memory.write(0xCEF0256, 0x10);
         CHECK(memory.read(0xCEF0256) == 0x10);
     }
 }
