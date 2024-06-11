@@ -189,6 +189,7 @@ Instruction::exec(Cpu& cpu) {
         },
         [&cpu](PcRelativeLoad& data) {
             uint32_t pc = cpu.pc;
+            rst_bit(pc, 0);
             rst_bit(pc, 1);
 
             cpu.gpr[data.rd] = cpu.bus->read_word(pc + data.word);

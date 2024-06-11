@@ -1,6 +1,5 @@
 #include "cpu/cpu-fixture.hh"
 #include "cpu/thumb/instruction.hh"
-#include "util/bits.hh"
 #include <catch2/catch_test_macros.hpp>
 
 using namespace matar;
@@ -531,8 +530,9 @@ TEST_CASE_METHOD(CpuFixture, "PC Relative Load", TAG) {
     InstructionData data = PcRelativeLoad{ .word = 0x578, .rd = 0 };
 
     setr(15, 0x3003FD5);
-    // 0x3003FD5 + 0x578
-    bus.write_word(0x300454D, 489753492);
+    // resetting bit 0 for 0x3003FD5, we get 0x3003FD4
+    // 0x3003FD4 + 0x578
+    bus.write_word(0x300454C, 489753492);
 
     CHECK(getr(0) == 0);
     exec(data);
