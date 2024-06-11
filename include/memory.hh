@@ -10,15 +10,16 @@
 namespace matar {
 class Memory {
   public:
-    static constexpr size_t BIOS_SIZE = 1024 * 16;
+    static constexpr uint32_t BIOS_SIZE = 1024 * 16;
 
     Memory(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom);
 
-    uint8_t read(size_t address) const;
-    void write(size_t address, uint8_t byte);
+    uint8_t read(uint32_t address) const;
+    void write(uint32_t address, uint8_t byte);
 
   private:
-#define MEMORY_REGION(name, start) static constexpr size_t name##_START = start;
+#define MEMORY_REGION(name, start)                                             \
+    static constexpr uint32_t name##_START = start;
 
 #define DECL_MEMORY(name, ident, start, end)                                   \
     MEMORY_REGION(name, start)                                                 \
@@ -50,7 +51,7 @@ class Memory {
 
 #undef MEMORY_REGION
 
-    std::unordered_map<size_t, uint8_t> invalid_mem;
+    std::unordered_map<uint32_t, uint8_t> invalid_mem;
     std::vector<uint8_t> rom;
     Header header;
     void parse_header();

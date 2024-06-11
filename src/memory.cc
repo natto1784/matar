@@ -1,9 +1,7 @@
 #include "memory.hh"
 #include "header.hh"
-#include "util/bits.hh"
 #include "util/crypto.hh"
 #include "util/log.hh"
-#include <bitset>
 #include <stdexcept>
 
 namespace matar {
@@ -35,7 +33,7 @@ Memory::Memory(std::array<uint8_t, BIOS_SIZE>&& bios,
 };
 
 uint8_t
-Memory::read(size_t address) const {
+Memory::read(uint32_t address) const {
 #define MATCHES(AREA, area)                                                    \
     if (address >= AREA##_START && address < AREA##_START + area.size())       \
         return area[address - AREA##_START];
@@ -57,7 +55,7 @@ Memory::read(size_t address) const {
 }
 
 void
-Memory::write(size_t address, uint8_t byte) {
+Memory::write(uint32_t address, uint8_t byte) {
 #define MATCHES(AREA, area)                                                    \
     if (address >= AREA##_START && address < AREA##_START + area.size()) {     \
         area[address - AREA##_START] = byte;                                   \
@@ -159,7 +157,7 @@ Memory::parse_header() {
     if (rom[0xB2] != 0x96)
         glogger.error("HEADER: invalid fixed byte at 0xB2");
 
-    for (size_t i = 0xB5; i < 0xBC; i++) {
+    for (uint32_t i = 0xB5; i < 0xBC; i++) {
         if (rom[i] != 0x00)
             glogger.error("HEADER: invalid fixed bytes at 0xB5");
     }
@@ -168,7 +166,7 @@ Memory::parse_header() {
 
     // checksum
     {
-        size_t i = 0xA0, chk = 0;
+        uint32_t i = 0xA0, chk = 0;
         while (i <= 0xBC)
             chk -= rom[i++];
         chk -= 0x19;

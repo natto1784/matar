@@ -7,17 +7,17 @@ Bus::Bus(const Memory& memory)
   : memory(std::make_shared<Memory>(memory)) {}
 
 uint8_t
-Bus::read_byte(size_t address) {
+Bus::read_byte(uint32_t address) {
     return memory->read(address);
 }
 
 void
-Bus::write_byte(size_t address, uint8_t byte) {
+Bus::write_byte(uint32_t address, uint8_t byte) {
     memory->write(address, byte);
 }
 
 uint16_t
-Bus::read_halfword(size_t address) {
+Bus::read_halfword(uint32_t address) {
     if (address & 0b01)
         glogger.warn("Reading a non aligned halfword address");
 
@@ -25,7 +25,7 @@ Bus::read_halfword(size_t address) {
 }
 
 void
-Bus::write_halfword(size_t address, uint16_t halfword) {
+Bus::write_halfword(uint32_t address, uint16_t halfword) {
     if (address & 0b01)
         glogger.warn("Writing to a non aligned halfword address");
 
@@ -34,7 +34,7 @@ Bus::write_halfword(size_t address, uint16_t halfword) {
 }
 
 uint32_t
-Bus::read_word(size_t address) {
+Bus::read_word(uint32_t address) {
     if (address & 0b11)
         glogger.warn("Reading a non aligned word address");
 
@@ -43,7 +43,7 @@ Bus::read_word(size_t address) {
 }
 
 void
-Bus::write_word(size_t address, uint32_t word) {
+Bus::write_word(uint32_t address, uint32_t word) {
     if (address & 0b11)
         glogger.warn("Writing to a non aligned word address");
 

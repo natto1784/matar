@@ -57,7 +57,7 @@ sub(uint32_t a, uint32_t b, bool& carry, bool& overflow) {
 
     uint32_t result = a - b;
 
-    carry    = b <= a;
+    carry    = a >= b;
     overflow = s1 != s2 && s2 == get_bit(result, 31);
 
     return result;
