@@ -1,6 +1,5 @@
 #include "cpu/arm/instruction.hh"
 #include "util/bits.hh"
-#include <iterator>
 
 namespace matar::arm {
 Instruction::Instruction(uint32_t insn)
@@ -13,13 +12,11 @@ Instruction::Instruction(uint32_t insn)
 
         // Branch
     } else if ((insn & 0x0E000000) == 0x0A000000) {
-        bool link       = get_bit(insn, 24);
-        uint32_t offset = bit_range(insn, 0, 23);
+        bool link      = get_bit(insn, 24);
+        int32_t offset = static_cast<int32_t>(bit_range(insn, 0, 23));
 
         // lsh 2 and sign extend the 26 bit offset to 32 bits
-        offset = (static_cast<int32_t>(offset) << 8) >> 6;
-
-        offset += 2 * INSTRUCTION_SIZE;
+        offset = (offset << 8) >> 6;
 
         data = Branch{ .link = link, .offset = offset };
 

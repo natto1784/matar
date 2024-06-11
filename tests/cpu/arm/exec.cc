@@ -24,18 +24,25 @@ TEST_CASE_METHOD(CpuFixture, "Branch", TAG) {
     InstructionData data = Branch{ .link = false, .offset = 3489748 };
     Branch* branch       = std::get_if<Branch>(&data);
 
+    // set PC to 48
+    setr(15, 48);
+
     exec(data);
 
-    CHECK(getr(15) == 3489748);
+    // 48 + offset
+    CHECK(getr(15) == 3489796);
     CHECK(getr(14) == 0);
 
     // with link
     reset();
+    setr(15, 48);
     branch->link = true;
     exec(data);
 
-    CHECK(getr(15) == 3489748);
-    CHECK(getr(14) == 0 + INSTRUCTION_SIZE);
+    // 48 + offset
+    CHECK(getr(15) == 3489796);
+    // pc was set to 48
+    CHECK(getr(14) == 48 - INSTRUCTION_SIZE);
 }
 
 TEST_CASE_METHOD(CpuFixture, "Multiply", TAG) {

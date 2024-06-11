@@ -119,9 +119,8 @@ Cpu::chg_mode(const Mode to) {
 void
 Cpu::step() {
     // Current instruction is two instructions behind PC
-    uint32_t cur_pc = pc - 2 * arm::INSTRUCTION_SIZE;
-
     if (cpsr.state() == State::Arm) {
+        uint32_t cur_pc = pc - 2 * arm::INSTRUCTION_SIZE;
         arm::Instruction instruction(bus->read_word(cur_pc));
 
 #ifdef DISASSEMBLER
@@ -129,12 +128,12 @@ Cpu::step() {
 #endif
 
         instruction.exec(*this);
-
     } else {
+        uint32_t cur_pc = pc - 2 * thumb::INSTRUCTION_SIZE;
         thumb::Instruction instruction(bus->read_halfword(cur_pc));
 
 #ifdef DISASSEMBLER
-        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble(cur_pc));
+        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
 #endif
 
         instruction.exec(*this);

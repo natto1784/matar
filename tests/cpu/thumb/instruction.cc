@@ -412,7 +412,8 @@ TEST_CASE("Conditional Branch", TAG) {
     CHECK(b->condition == Condition::LS);
 
 #ifdef DISASSEMBLER
-    // (-76 << 1) + PC (0) + 4
+    // take prefetch into account
+    // offset + 4 = -152 + 4
     CHECK(instruction.disassemble() == "BLS #-148");
 #endif
 }
@@ -439,7 +440,8 @@ TEST_CASE("Unconditional Branch") {
     REQUIRE(b->offset == -410);
 
 #ifdef DISASSEMBLER
-    // (2147483443 << 1) + PC(0) + 4
+    // take prefetch into account
+    // offset + 4 = -410 + 4
     CHECK(instruction.disassemble() == "B #-406");
 #endif
 }

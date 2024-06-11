@@ -282,7 +282,7 @@ struct Instruction {
     void exec(Cpu& cpu);
 
 #ifdef DISASSEMBLER
-    std::string disassemble(uint32_t pc = 0);
+    std::string disassemble();
 #endif
 
     InstructionData data;

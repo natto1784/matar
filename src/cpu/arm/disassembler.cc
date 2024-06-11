@@ -1,7 +1,6 @@
 #include "cpu/arm/instruction.hh"
 #include "util/bits.hh"
 #include <format>
-#include <string>
 
 namespace matar::arm {
 std::string
@@ -15,7 +14,10 @@ Instruction::disassemble() {
         },
         [condition](Branch& data) {
             return std::format(
-              "B{}{} 0x{:06X}", (data.link ? "L" : ""), condition, data.offset);
+              "B{}{} {:#06x}",
+              (data.link ? "L" : ""),
+              condition,
+              static_cast<int32_t>(data.offset + 2 * INSTRUCTION_SIZE));
         },
         [condition](Multiply& data) {
             if (data.acc) {

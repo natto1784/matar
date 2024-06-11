@@ -31,15 +31,16 @@ TEST_CASE("Branch", TAG) {
 
     // last 24 bits = 8748995
     // (8748995 << 8) >> 6 sign extended = 0xFE15FF0C
-    // Also +8 since PC is two instructions ahead
-    CHECK(b->offset == 0xFE15FF14);
+    CHECK(b->offset == static_cast<int32_t>(0xfe15ff0c));
     CHECK(b->link == true);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "BL 0xFE15FF14");
+    // take prefetch into account
+    // offset + 8 = 0xfe15ff0c + 8 = -0x1ea00e4 + 8
+    CHECK(instruction.disassemble() == "BL -0x1ea00ec");
 
     b->link = false;
-    CHECK(instruction.disassemble() == "B 0xFE15FF14");
+    CHECK(instruction.disassemble() == "B -0x1ea00ec");
 #endif
 }
 

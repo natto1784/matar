@@ -40,17 +40,14 @@ Instruction::exec(Cpu& cpu) {
             if (state == State::Arm)
                 rst_bit(cpu.pc, 1);
 
-            // pc is affected so flush the pipeline
+            // PC is affected so flush the pipeline
             cpu.is_flushed = true;
         },
         [&cpu](Branch& data) {
             if (data.link)
                 cpu.gpr[14] = cpu.pc - INSTRUCTION_SIZE;
 
-            // data.offset accounts for two instructions ahead when
-            // disassembling, so need to adjust
-            cpu.pc =
-              static_cast<int32_t>(cpu.pc) - 2 * INSTRUCTION_SIZE + data.offset;
+            cpu.pc += data.offset;
 
             // pc is affected so flush the pipeline
             cpu.is_flushed = true;

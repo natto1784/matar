@@ -26,7 +26,7 @@ struct BranchAndExchange {
 
 struct Branch {
     bool link;
-    uint32_t offset;
+    int32_t offset;
 };
 
 struct Multiply {

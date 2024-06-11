@@ -4,7 +4,7 @@
 
 namespace matar::thumb {
 std::string
-Instruction::disassemble(uint32_t pc) {
+Instruction::disassemble() {
     return std::visit(
       overloaded{
         [](MoveShiftedRegister& data) {
@@ -133,16 +133,16 @@ Instruction::disassemble(uint32_t pc) {
         [](SoftwareInterrupt& data) {
             return std::format("SWI {:d}", data.vector);
         },
-        [pc](ConditionalBranch& data) {
+        [](ConditionalBranch& data) {
             return std::format(
               "B{} #{:d}",
               stringify(data.condition),
-              static_cast<int32_t>(data.offset + pc + 2 * INSTRUCTION_SIZE));
+              static_cast<int32_t>(data.offset + 2 * INSTRUCTION_SIZE));
         },
-        [pc](UnconditionalBranch& data) {
+        [](UnconditionalBranch& data) {
             return std::format(
               "B #{:d}",
-              static_cast<int32_t>(data.offset + pc + 2 * INSTRUCTION_SIZE));
+              static_cast<int32_t>(data.offset + 2 * INSTRUCTION_SIZE));
         },
         [](LongBranchWithLink& data) {
             // duh this manual be empty for H = 0
