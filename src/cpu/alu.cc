@@ -1,5 +1,6 @@
 #include "cpu/alu.hh"
 #include "util/bits.hh"
+#include <bit>
 
 namespace matar {
 uint32_t

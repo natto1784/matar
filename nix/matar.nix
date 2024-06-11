@@ -1,13 +1,14 @@
 { ... }: {
   perSystem = { pkgs, src, ... }:
     let
+      stdenv = pkgs.gcc14Stdenv;
+
       libraries = with pkgs; [
-        (pkgs.fmt.override { enableShared = false; }).dev
-        catch2_3.out
+        (catch2_3.override { inherit stdenv; }).out
       ];
     in
     {
-      packages.matar = pkgs.callPackage ./build.nix { inherit src libraries; };
-      devShells.matar = pkgs.callPackage ./shell.nix { inherit libraries; };
+      packages.matar = pkgs.callPackage ./build.nix { inherit src libraries stdenv; };
+      devShells.matar = pkgs.callPackage ./shell.nix { inherit libraries stdenv; };
     };
 }

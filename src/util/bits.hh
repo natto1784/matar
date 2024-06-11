@@ -35,6 +35,6 @@ inline Int
 bit_range(Int num, size_t start, size_t end) {
     // NOTE: we do not require -1 if it is a signed integral
     Int left =
-      std::numeric_limits<Int>::digits - (std::is_unsigned<Int>::value) - end;
+      std::numeric_limits<Int>::digits - (!std::is_signed<Int>::value) - end;
     return static_cast<Int>(num << left) >> (left + start);
 }

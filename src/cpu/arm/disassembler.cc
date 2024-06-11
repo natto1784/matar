@@ -1,5 +1,7 @@
 #include "cpu/arm/instruction.hh"
 #include "util/bits.hh"
+#include <format>
+#include <string>
 
 namespace matar::arm {
 std::string
@@ -9,15 +11,15 @@ Instruction::disassemble() {
     return std::visit(
       overloaded{
         [condition](BranchAndExchange& data) {
-            return fmt::format("BX{} R{:d}", condition, data.rn);
+            return std::format("BX{} R{:d}", condition, data.rn);
         },
         [condition](Branch& data) {
-            return fmt::format(
+            return std::format(
               "B{}{} 0x{:06X}", (data.link ? "L" : ""), condition, data.offset);
         },
         [condition](Multiply& data) {
             if (data.acc) {
-                return fmt::format("MLA{}{} R{:d},R{:d},R{:d},R{:d}",
+                return std::format("MLA{}{} R{:d},R{:d},R{:d},R{:d}",
                                    condition,
                                    (data.set ? "S" : ""),
                                    data.rd,
@@ -25,7 +27,7 @@ Instruction::disassemble() {
                                    data.rs,
                                    data.rn);
             } else {
-                return fmt::format("MUL{}{} R{:d},R{:d},R{:d}",
+                return std::format("MUL{}{} R{:d},R{:d},R{:d}",
                                    condition,
                                    (data.set ? "S" : ""),
                                    data.rd,
@@ -34,7 +36,7 @@ Instruction::disassemble() {
             }
         },
         [condition](MultiplyLong& data) {
-            return fmt::format("{}{}{}{} R{:d},R{:d},R{:d},R{:d}",
+            return std::format("{}{}{}{} R{:d},R{:d},R{:d},R{:d}",
                                (data.uns ? 'U' : 'S'),
                                (data.acc ? "MLAL" : "MULL"),
                                condition,
@@ -46,7 +48,7 @@ Instruction::disassemble() {
         },
         [](Undefined) { return std::string("UND"); },
         [condition](SingleDataSwap& data) {
-            return fmt::format("SWP{}{} R{:d},R{:d},[R{:d}]",
+            return std::format("SWP{}{} R{:d},R{:d},[R{:d}]",
                                condition,
                                (data.byte ? "B" : ""),
                                data.rd,
@@ -62,18 +64,18 @@ Instruction::disassemble() {
                     expression = "";
                 } else {
                     expression =
-                      fmt::format(",{}#{:d}", (data.up ? '+' : '-'), *offset);
+                      std::format(",{}#{:d}", (data.up ? '+' : '-'), *offset);
                 }
             } else if (const Shift* shift = std::get_if<Shift>(&data.offset)) {
                 // Shifts are always immediate in single data transfer
-                expression = fmt::format(",{}R{:d},{} #{:d}",
+                expression = std::format(",{}R{:d},{} #{:d}",
                                          (data.up ? '+' : '-'),
                                          shift->rm,
                                          stringify(shift->data.type),
                                          shift->data.operand);
             }
 
-            return fmt::format(
+            return std::format(
               "{}{}{}{} R{:d},[R{:d}{}]{}",
               (data.load ? "LDR" : "STR"),
               condition,
@@ -91,15 +93,15 @@ Instruction::disassemble() {
                 if (data.offset == 0) {
                     expression = "";
                 } else {
-                    expression = fmt::format(
+                    expression = std::format(
                       ",{}#{:d}", (data.up ? '+' : '-'), data.offset);
                 }
             } else {
                 expression =
-                  fmt::format(",{}R{:d}", (data.up ? '+' : '-'), data.offset);
+                  std::format(",{}R{:d}", (data.up ? '+' : '-'), data.offset);
             }
 
-            return fmt::format(
+            return std::format(
               "{}{}{}{} R{:d},[R{:d}{}]{}",
               (data.load ? "LDR" : "STR"),
               condition,
@@ -115,12 +117,12 @@ Instruction::disassemble() {
 
             for (uint8_t i = 0; i < 16; i++) {
                 if (get_bit(data.regs, i))
-                    fmt::format_to(std::back_inserter(regs), "R{:d},", i);
+                    std::format_to(std::back_inserter(regs), "R{:d},", i);
             };
 
             regs.pop_back();
 
-            return fmt::format("{}{}{}{} R{:d}{},{{{}}}{}",
+            return std::format("{}{}{}{} R{:d}{},{{{}}}{}",
                                (data.load ? "LDM" : "STM"),
                                condition,
                                (data.up ? 'I' : 'D'),
@@ -132,12 +134,12 @@ Instruction::disassemble() {
         },
         [condition](PsrTransfer& data) {
             if (data.type == PsrTransfer::Type::Mrs) {
-                return fmt::format("MRS{} R{:d},{}",
+                return std::format("MRS{} R{:d},{}",
                                    condition,
                                    data.operand,
                                    (data.spsr ? "SPSR_all" : "CPSR_all"));
             } else {
-                return fmt::format(
+                return std::format(
                   "MSR{} {}_{},{}{}",
                   condition,
                   (data.spsr ? "SPSR" : "CPSR"),
@@ -153,9 +155,9 @@ Instruction::disassemble() {
 
             if (const uint32_t* operand =
                   std::get_if<uint32_t>(&data.operand)) {
-                op_2 = fmt::format("#{:d}", *operand);
+                op_2 = std::format("#{:d}", *operand);
             } else if (const Shift* shift = std::get_if<Shift>(&data.operand)) {
-                op_2 = fmt::format("R{:d},{} {}{:d}",
+                op_2 = std::format("R{:d},{} {}{:d}",
                                    shift->rm,
                                    stringify(shift->data.type),
                                    (shift->data.immediate ? '#' : 'R'),
@@ -165,7 +167,7 @@ Instruction::disassemble() {
             switch (data.opcode) {
                 case OpCode::MOV:
                 case OpCode::MVN:
-                    return fmt::format("{}{}{} R{:d},{}",
+                    return std::format("{}{}{} R{:d},{}",
                                        stringify(data.opcode),
                                        condition,
                                        (data.set ? "S" : ""),
@@ -175,13 +177,13 @@ Instruction::disassemble() {
                 case OpCode::TEQ:
                 case OpCode::CMP:
                 case OpCode::CMN:
-                    return fmt::format("{}{} R{:d},{}",
+                    return std::format("{}{} R{:d},{}",
                                        stringify(data.opcode),
                                        condition,
                                        data.rn,
                                        op_2);
                 default:
-                    return fmt::format("{}{}{} R{:d},R{:d},{}",
+                    return std::format("{}{}{} R{:d},R{:d},{}",
                                        stringify(data.opcode),
                                        condition,
                                        (data.set ? "S" : ""),
@@ -191,11 +193,11 @@ Instruction::disassemble() {
             }
         },
         [condition](SoftwareInterrupt) {
-            return fmt::format("SWI{}", condition);
+            return std::format("SWI{}", condition);
         },
         [condition](CoprocessorDataTransfer& data) {
-            std::string expression = fmt::format(",#{:d}", data.offset);
-            return fmt::format(
+            std::string expression = std::format(",#{:d}", data.offset);
+            return std::format(
               "{}{}{} p{:d},c{:d},[R{:d}{}]{}",
               (data.load ? "LDC" : "STC"),
               condition,
@@ -207,7 +209,7 @@ Instruction::disassemble() {
               (data.pre ? (data.write ? "!" : "") : expression));
         },
         [condition](CoprocessorDataOperation& data) {
-            return fmt::format("CDP{} p{},{},c{},c{},c{},{}",
+            return std::format("CDP{} p{},{},c{},c{},c{},{}",
                                condition,
                                data.cpn,
                                data.cp_opc,
@@ -217,7 +219,7 @@ Instruction::disassemble() {
                                data.cp);
         },
         [condition](CoprocessorRegisterTransfer& data) {
-            return fmt::format("{}{} p{},{},R{},c{},c{},{}",
+            return std::format("{}{} p{},{},R{},c{},c{},{}",
                                (data.load ? "MRC" : "MCR"),
                                condition,
                                data.cpn,

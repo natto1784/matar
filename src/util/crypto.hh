@@ -2,7 +2,7 @@
 
 #include <array>
 #include <bit>
-#include <fmt/core.h>
+#include <format>
 #include <string>
 
 // Why I wrote this myself? I do not know
@@ -110,7 +110,7 @@ sha256(std::array<uint8_t, N>& data) {
 
     for (j = 0; j < 8; j++)
         for (i = 0; i < 4; i++)
-            fmt::format_to(std::back_inserter(string),
+            std::format_to(std::back_inserter(string),
                            "{:02x}",
                            ((h[j] >> (24 - i * 8)) & 0xFF));
 

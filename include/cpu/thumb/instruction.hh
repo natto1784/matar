@@ -3,7 +3,7 @@
 #include "cpu/alu.hh"
 #include "cpu/psr.hh"
 #include <cstdint>
-#include <fmt/ostream.h>
+#include <string>
 #include <variant>
 
 namespace matar {

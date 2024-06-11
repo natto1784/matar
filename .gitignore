@@ -3,5 +3,5 @@ result
 build/
 .cache/
 *~
-#*#
+\#*\#
 .#*

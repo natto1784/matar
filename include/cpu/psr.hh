@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <fmt/ostream.h>
 
 namespace matar {
 enum class Mode {

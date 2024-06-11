@@ -1,8 +1,7 @@
 #pragma once
 
 #include "util/loglevel.hh"
-#include <fmt/ostream.h>
-#include <iostream>
+#include <print>
 
 namespace logging {
 namespace ansi {
@@ -14,7 +13,7 @@ static constexpr auto BOLD    = "\033[1m";
 static constexpr auto RESET   = "\033[0m";
 }
 
-using fmt::print;
+using std::print;
 
 class Logger {
     using LogLevel = matar::LogLevel;
@@ -27,12 +26,12 @@ class Logger {
     }
 
     template<typename... Args>
-    void log(const fmt::format_string<Args...>& fmt, Args&&... args) {
-        fmt::println(stream, fmt, std::forward<Args>(args)...);
+    void log(const std::format_string<Args...>& fmt, Args&&... args) {
+        std::println(stream, fmt, std::forward<Args>(args)...);
     }
 
     template<typename... Args>
-    void debug(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    void debug(const std::format_string<Args...>& fmt, Args&&... args) {
         if (level & static_cast<uint8_t>(LogLevel::Debug)) {
             print(stream, "{}{}[DEBUG] ", ansi::MAGENTA, ansi::BOLD);
             log(fmt, std::forward<Args>(args)...);
@@ -41,7 +40,7 @@ class Logger {
     }
 
     template<typename... Args>
-    void info(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    void info(const std::format_string<Args...>& fmt, Args&&... args) {
         if (level & static_cast<uint8_t>(LogLevel::Info)) {
             print(stream, "{}[INFO] ", ansi::WHITE);
             log(fmt, std::forward<Args>(args)...);
@@ -50,7 +49,7 @@ class Logger {
     }
 
     template<typename... Args>
-    void warn(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    void warn(const std::format_string<Args...>& fmt, Args&&... args) {
         if (level & static_cast<uint8_t>(LogLevel::Warn)) {
             print(stream, "{}[WARN] ", ansi::YELLOW);
             log(fmt, std::forward<Args>(args)...);
@@ -59,7 +58,7 @@ class Logger {
     }
 
     template<typename... Args>
-    void error(const fmt::format_string<Args...>& fmt, Args&&... args) {
+    void error(const std::format_string<Args...>& fmt, Args&&... args) {
         if (level & static_cast<uint8_t>(LogLevel::Error)) {
             print(stream, "{}{}[ERROR] ", ansi::RED, ansi::BOLD);
             log(fmt, std::forward<Args>(args)...);

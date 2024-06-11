@@ -2,7 +2,7 @@
 #include "cpu/alu.hh"
 #include "cpu/psr.hh"
 #include <cstdint>
-#include <fmt/ostream.h>
+#include <string>
 #include <variant>
 
 namespace matar {
@@ -215,7 +215,7 @@ struct Instruction {
     Instruction(uint32_t insn);
     Instruction(Condition condition, InstructionData data)
       : condition(condition)
-      , data(data){};
+      , data(data) {};
 
     void exec(Cpu& cpu);
 
