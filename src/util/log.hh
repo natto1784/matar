@@ -49,6 +49,15 @@ class Logger {
     }
 
     template<typename... Args>
+    void info_bold(const std::format_string<Args...>& fmt, Args&&... args) {
+        if (level & static_cast<uint8_t>(LogLevel::Info)) {
+            print(stream, "{}{}[INFO] ", ansi::WHITE, ansi::BOLD);
+            log(fmt, std::forward<Args>(args)...);
+            print(stream, ansi::RESET);
+        }
+    }
+
+    template<typename... Args>
     void warn(const std::format_string<Args...>& fmt, Args&&... args) {
         if (level & static_cast<uint8_t>(LogLevel::Warn)) {
             print(stream, "{}[WARN] ", ansi::YELLOW);

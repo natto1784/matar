@@ -21,12 +21,12 @@ class Cpu {
 
     static constexpr uint8_t GPR_COUNT = 16;
 
-    static constexpr uint8_t GPR_FIQ_FIRST     = 8;
-    static constexpr uint8_t GPR_SVC_FIRST     = 13;
-    static constexpr uint8_t GPR_ABT_FIRST     = 13;
-    static constexpr uint8_t GPR_IRQ_FIRST     = 13;
-    static constexpr uint8_t GPR_UND_FIRST     = 13;
-    static constexpr uint8_t GPR_SYS_USR_FIRST = 8;
+    static constexpr uint8_t GPR_FIQ_FIRST = 8;
+    static constexpr uint8_t GPR_SVC_FIRST = 13;
+    static constexpr uint8_t GPR_ABT_FIRST = 13;
+    static constexpr uint8_t GPR_IRQ_FIRST = 13;
+    static constexpr uint8_t GPR_UND_FIRST = 13;
+    static constexpr uint8_t GPR_OLD_FIRST = 8;
 
     std::shared_ptr<Bus> bus;
     std::array<uint32_t, GPR_COUNT> gpr; // general purpose registers
@@ -54,7 +54,7 @@ class Cpu {
         std::array<uint32_t, GPR_COUNT - GPR_UND_FIRST - 1> und;
 
         // visible registers before the mode switch
-        std::array<uint32_t, GPR_COUNT - GPR_SYS_USR_FIRST> old;
+        std::array<uint32_t, GPR_COUNT - GPR_OLD_FIRST - 1> old;
     } gpr_banked; // banked general purpose registers
 
     struct {

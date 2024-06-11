@@ -1,11 +1,9 @@
 #include "cpu/cpu.hh"
 #include "cpu/arm/instruction.hh"
 #include "cpu/thumb/instruction.hh"
-#include "util/bits.hh"
 #include "util/log.hh"
 #include <algorithm>
 #include <cstdio>
-#include <type_traits>
 
 namespace matar {
 Cpu::Cpu(const Bus& bus) noexcept
@@ -39,13 +37,16 @@ Cpu::chg_mode(const Mode to) {
  * concatenate views */
 #define STORE_BANKED(mode, MODE)                                               \
     std::copy(gpr.begin() + GPR_##MODE##_FIRST,                                \
-              gpr.begin() + gpr.size() - 1,                                    \
+              gpr.end() - 1,                                                   \
               gpr_banked.mode.begin())
 
     switch (from) {
         case Mode::Fiq:
             STORE_BANKED(fiq, FIQ);
             spsr_banked.fiq = spsr;
+            std::copy(gpr_banked.old.begin(),
+                      gpr_banked.old.end() - 2, // dont copy R13 and R14
+                      gpr.begin() + GPR_OLD_FIRST);
             break;
 
         case Mode::Supervisor:
@@ -70,9 +71,14 @@ Cpu::chg_mode(const Mode to) {
 
         case Mode::User:
         case Mode::System:
-            STORE_BANKED(old, SYS_USR);
+            // we only take care of r13 and r14, because FIQ takes care of the
+            // rest
+            gpr_banked.old[5] = gpr[13];
+            gpr_banked.old[6] = gpr[14];
             break;
     }
+
+#undef STORE_BANKED
 
 #define RESTORE_BANKED(mode, MODE)                                             \
     std::copy(gpr_banked.mode.begin(),                                         \
@@ -83,6 +89,9 @@ Cpu::chg_mode(const Mode to) {
         case Mode::Fiq:
             RESTORE_BANKED(fiq, FIQ);
             spsr = spsr_banked.fiq;
+            std::copy(gpr.begin() + GPR_FIQ_FIRST,
+                      gpr.end() - 2, // dont copy R13 and R14
+                      gpr_banked.old.begin());
             break;
 
         case Mode::Supervisor:
@@ -107,13 +116,17 @@ Cpu::chg_mode(const Mode to) {
 
         case Mode::User:
         case Mode::System:
-            STORE_BANKED(old, SYS_USR);
+            gpr[13] = gpr_banked.old[5];
+            gpr[14] = gpr_banked.old[6];
             break;
     }
 
 #undef RESTORE_BANKED
 
     cpsr.set_mode(to);
+    glogger.info_bold("Mode changed from {:b} to {:b}",
+                      static_cast<uint32_t>(from),
+                      static_cast<uint32_t>(to));
 }
 
 void
