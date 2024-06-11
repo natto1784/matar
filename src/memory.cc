@@ -41,6 +41,10 @@ Memory::read(uint32_t address) const {
     MATCHES(BIOS, bios)
     MATCHES(BOARD_WRAM, board_wram)
     MATCHES(CHIP_WRAM, chip_wram)
+
+    if (address >= 0x04000000 && address <= 0x040003FE)
+        return io.read(address);
+
     MATCHES(PALETTE_RAM, palette_ram)
     MATCHES(VRAM, vram)
     MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
@@ -64,6 +68,12 @@ Memory::write(uint32_t address, uint8_t byte) {
 
     MATCHES(BOARD_WRAM, board_wram)
     MATCHES(CHIP_WRAM, chip_wram)
+
+    if (address >= 0x04000000 && address <= 0x040003FE) {
+        io.write(address, byte);
+        return;
+    }
+
     MATCHES(PALETTE_RAM, palette_ram)
     MATCHES(VRAM, vram)
     MATCHES(OAM_OBJ_ATTR, oam_obj_attr)

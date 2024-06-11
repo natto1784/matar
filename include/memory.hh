@@ -1,6 +1,7 @@
 #pragma once
 
 #include "header.hh"
+#include "io.hh"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -51,6 +52,7 @@ class Memory {
 
 #undef MEMORY_REGION
 
+    IoRegisters io;
     std::unordered_map<uint32_t, uint8_t> invalid_mem;
     std::vector<uint8_t> rom;
     Header header;

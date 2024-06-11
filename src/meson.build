@@ -1,6 +1,7 @@
 lib_sources = files(
   'memory.cc',
-  'bus.cc'
+  'bus.cc',
+  'io.cc'
 )
 
 subdir('util')
