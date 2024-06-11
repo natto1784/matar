@@ -115,7 +115,6 @@ class Psr {
 
   private:
     static constexpr uint32_t PSR_CLEAR_RESERVED = 0xF00000FF;
-    static constexpr uint32_t PSR_CLEAR_MODE     = 0xFFFFFFE0;
 
     uint32_t psr;
 };

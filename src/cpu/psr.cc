@@ -1,6 +1,5 @@
 #include "cpu/psr.hh"
 #include "util/bits.hh"
-#include "util/log.hh"
 
 namespace matar {
 Psr::Psr(uint32_t raw)
@@ -18,12 +17,12 @@ Psr::set_all(uint32_t raw) {
 
 Mode
 Psr::mode() const {
-    return static_cast<Mode>(psr & ~PSR_CLEAR_MODE);
+    return static_cast<Mode>(psr & 0b11111);
 }
 
 void
 Psr::set_mode(Mode mode) {
-    psr &= PSR_CLEAR_MODE;
+    psr &= 0b00000;
     psr |= static_cast<uint32_t>(mode);
 }
 
