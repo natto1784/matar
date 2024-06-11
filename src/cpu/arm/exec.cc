@@ -171,10 +171,6 @@ Instruction::exec(Cpu& cpu) {
                 cpu.cpsr.set_c(carry);
             }
 
-            // PC is always two instructions ahead
-            if (data.rn == cpu.PC_INDEX)
-                address -= 2 * INSTRUCTION_SIZE;
-
             if (data.pre)
                 address += (data.up ? offset : -offset);
 

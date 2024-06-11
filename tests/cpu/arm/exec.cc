@@ -319,9 +319,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus.read_word(0x300352A - 2 * INSTRUCTION_SIZE) == 61119);
+        CHECK(bus.read_word(0x300352A) == 61119);
         // 0x300352A - 0xDA1
-        CHECK(getr(15) == 0x3002789 - 2 * INSTRUCTION_SIZE);
+        CHECK(getr(15) == 0x3002789);
 
         // cleanup
         data_transfer->rn = 7;
