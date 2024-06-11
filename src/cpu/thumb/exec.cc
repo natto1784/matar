@@ -168,7 +168,10 @@ Instruction::exec(Cpu& cpu) {
                         cpu.is_flushed = true;
                 } break;
                 case HiRegisterOperations::OpCode::BX: {
-                    State state = static_cast<State>(op_2 & 1);
+                    State state = static_cast<State>(get_bit(op_2, 0));
+
+                    if (state != cpu.cpsr.state())
+                        glogger.info_bold("State changed");
 
                     // set state
                     cpu.cpsr.set_state(state);

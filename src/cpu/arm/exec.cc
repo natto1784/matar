@@ -24,15 +24,19 @@ Instruction::exec(Cpu& cpu) {
     std::visit(
       overloaded{
         [&cpu, pc_warn](BranchAndExchange& data) {
-            State state = static_cast<State>(data.rn & 1);
+            uint32_t addr = cpu.gpr[data.rn];
+            State state   = static_cast<State>(get_bit(addr, 0));
 
             pc_warn(data.rn);
+
+            if (state != cpu.cpsr.state())
+                glogger.info_bold("State changed");
 
             // set state
             cpu.cpsr.set_state(state);
 
             // copy to PC
-            cpu.pc = cpu.gpr[data.rn];
+            cpu.pc = addr;
 
             // ignore [1:0] bits for arm and 0 bit for thumb
             rst_bit(cpu.pc, 0);
