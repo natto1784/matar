@@ -30,7 +30,7 @@
   40000A4h  4    W    FIFO_B    Channel B FIFO, Data 0-3
 */
 
-struct sound{
+struct sound {
     using u16 = uint16_t;
 
     // channel 1

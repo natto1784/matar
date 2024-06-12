@@ -1,7 +1,7 @@
 #pragma once
 
-#include "memory.hh"
 #include "io/io.hh"
+#include "memory.hh"
 #include <memory>
 
 namespace matar {
