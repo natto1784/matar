@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory.hh"
+#include "io/io.hh"
 #include <memory>
 
 namespace matar {
@@ -18,6 +19,7 @@ class Bus {
     void write_word(uint32_t address, uint32_t word);
 
   private:
+    IoDevices io;
     std::shared_ptr<Memory> memory;
 };
 }

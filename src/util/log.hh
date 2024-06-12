@@ -19,7 +19,7 @@ class Logger {
     using LogLevel = matar::LogLevel;
 
   public:
-    Logger(LogLevel level = LogLevel::Debug, FILE* stream = stderr)
+    Logger(LogLevel level = LogLevel::Debug, FILE* stream = stdout)
       : level(0)
       , stream(stream) {
         set_level(level);

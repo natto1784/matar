@@ -13,9 +13,9 @@ I am using LLVM's clang and libcxx as the primary toolchain.
 
 ## Static libraries
 
-| Name   | Version   | Required? |
-|:------:|:----------|:---------:|
-| catch2 | >= 3.4    | for tests |
+| Name   | Version | Required? | Purpose   |
+|:------:|:--------|:---------:|:---------:|
+| catch2 | >= 3.4  | no        | for tests |
 
 This goes without saying but using a different toolchain to compile these libraries before linking probably won't work.
 

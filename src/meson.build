@@ -1,11 +1,11 @@
 lib_sources = files(
   'memory.cc',
   'bus.cc',
-  'io.cc'
 )
 
 subdir('util')
 subdir('cpu')
+subdir('io')
 
 lib_cpp_args = []
 
