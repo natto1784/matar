@@ -283,7 +283,7 @@ Instruction::exec(Cpu& cpu) {
 
             uint32_t address = cpu.gpr[data.rn];
             Mode mode        = cpu.cpsr.mode();
-            int8_t i        = 0;
+            int8_t i         = 0;
 
             pc_error(data.rn);
 
@@ -377,6 +377,11 @@ Instruction::exec(Cpu& cpu) {
                     pc_error(data.operand);
 
                     if (cpu.cpsr.mode() != Mode::User) {
+                        if (!data.spsr) {
+                            Psr tmp = Psr(cpu.gpr[data.operand]);
+                            cpu.chg_mode(tmp.mode());
+                        }
+
                         psr.set_all(cpu.gpr[data.operand]);
                     }
                     break;
