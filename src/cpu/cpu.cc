@@ -1,6 +1,7 @@
 #include "cpu/cpu.hh"
 #include "cpu/arm/instruction.hh"
 #include "cpu/thumb/instruction.hh"
+#include "util/bits.hh"
 #include "util/log.hh"
 #include <algorithm>
 #include <cstdio>
@@ -131,8 +132,12 @@ Cpu::chg_mode(const Mode to) {
 
 void
 Cpu::step() {
-    // Current instruction is two instructions behind PC
+    // halfword align
+    rst_bit(pc, 0);
     if (cpsr.state() == State::Arm) {
+        // word align
+        rst_bit(pc, 1);
+        // Current instruction is two instructions behind PC
         uint32_t cur_pc = pc - 2 * arm::INSTRUCTION_SIZE;
         arm::Instruction instruction(bus->read_word(cur_pc));
 
