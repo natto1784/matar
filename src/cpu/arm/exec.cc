@@ -283,8 +283,7 @@ Instruction::exec(Cpu& cpu) {
 
             uint32_t address = cpu.gpr[data.rn];
             Mode mode        = cpu.cpsr.mode();
-            uint8_t i        = 0;
-            uint8_t n_regs   = std::popcount(data.regs);
+            int8_t i        = 0;
 
             pc_error(data.rn);
 
@@ -304,11 +303,7 @@ Instruction::exec(Cpu& cpu) {
                 }
             }
 
-            // TODO: clean this shit
-            // account for decrement
-            if (!data.up)
-                address -= (n_regs - 1) * alignment;
-
+            // increment beforehand
             if (data.pre)
                 address += (data.up ? alignment : -alignment);
 
@@ -319,29 +314,42 @@ Instruction::exec(Cpu& cpu) {
                     cpu.spsr = cpu.cpsr;
                 }
 
-                for (i = 0; i < cpu.GPR_COUNT; i++) {
-                    if (get_bit(data.regs, i)) {
-                        cpu.gpr[i] = cpu.bus->read_word(address);
-                        address += alignment;
+                if (data.up) {
+                    for (i = 0; i < cpu.GPR_COUNT; i++) {
+                        if (get_bit(data.regs, i)) {
+                            cpu.gpr[i] = cpu.bus->read_word(address);
+                            address += alignment;
+                        }
+                    }
+                } else {
+                    for (i = cpu.GPR_COUNT - 1; i >= 0; i--) {
+                        if (get_bit(data.regs, i)) {
+                            cpu.gpr[i] = cpu.bus->read_word(address);
+                            address -= alignment;
+                        }
                     }
                 }
             } else {
-                for (i = 0; i < cpu.GPR_COUNT; i++) {
-                    if (get_bit(data.regs, i)) {
-                        cpu.bus->write_word(address, cpu.gpr[i]);
-                        address += alignment;
+                if (data.up) {
+                    for (i = 0; i < cpu.GPR_COUNT; i++) {
+                        if (get_bit(data.regs, i)) {
+                            cpu.bus->write_word(address, cpu.gpr[i]);
+                            address += alignment;
+                        }
+                    }
+                } else {
+                    for (i = cpu.GPR_COUNT - 1; i >= 0; i--) {
+                        if (get_bit(data.regs, i)) {
+                            cpu.bus->write_word(address, cpu.gpr[i]);
+                            address -= alignment;
+                        }
                     }
                 }
             }
 
-            if (!data.pre)
-                address += (data.up ? alignment : -alignment);
-
-            // reset back to original address + offset if incremented earlier
-            if (data.up)
-                address -= n_regs * alignment;
-            else
-                address -= alignment;
+            // fix increment
+            if (data.pre)
+                address += (data.up ? -alignment : alignment);
 
             if (!data.pre || data.write)
                 cpu.gpr[data.rn] = address;

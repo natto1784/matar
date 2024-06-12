@@ -557,7 +557,7 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         setr(10, address);
         block_transfer->write = true;
         exec(data);
-        checker(address + alignment);
+        checker(address + 7 * alignment);
 
         // decrement
         block_transfer->write = false;
@@ -568,10 +568,10 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         checker(address + alignment * 8);
 
         // with write
-        setr(10, 0x3000D98);
+        setr(10, address + alignment * 8);
         block_transfer->write = true;
         exec(data);
-        checker(address + alignment * 7);
+        checker(address + alignment);
 
         // post increment
         block_transfer->write = false;
@@ -580,14 +580,14 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         // adjust rn
         setr(10, address + alignment);
         exec(data);
-        checker(address + alignment * 2);
+        checker(address + alignment * 8);
 
         // post decrement
         block_transfer->up = false;
         // adjust rn
         setr(10, address + alignment * 7);
         exec(data);
-        checker(address + alignment * 6);
+        checker(address);
 
         // with s bit
         cpu.chg_mode(Mode::Fiq);
