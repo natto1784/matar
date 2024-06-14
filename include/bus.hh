@@ -39,7 +39,8 @@ class Bus {
     std::optional<std::span<uint8_t>> write(uint32_t);
 
 #define MEMORY_REGION(name, start)                                             \
-    static constexpr uint32_t name##_START = start;
+    static constexpr uint32_t name##_START = start;                            \
+    static constexpr uint8_t name##_REGION = start >> 24 & 0xFF;
 
 #define DECL_MEMORY(name, ident, start, end)                                   \
     MEMORY_REGION(name, start)                                                 \
@@ -70,6 +71,7 @@ class Bus {
     MEMORY_REGION(ROM_2, 0x0C000000)
 
 #undef MEMORY_REGION
+
     std::vector<uint8_t> rom;
 
     std::unique_ptr<IoDevices> io;

@@ -41,21 +41,36 @@ Bus::init(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom) {
 template<unsigned int N>
 std::optional<std::span<const uint8_t>>
 Bus::read(uint32_t address) const {
+
+    switch (address >> 24 & 0xFF) {
+
 #define MATCHES(AREA, area)                                                    \
-    if (address >= AREA##_START && address < AREA##_START + area.size())       \
+    case AREA##_REGION:                                                        \
+        if (address > AREA##_START + area.size() - N)                          \
+            break;                                                             \
         return std::span<const uint8_t>(&area[address - AREA##_START], N);
 
-    MATCHES(BIOS, bios)
-    MATCHES(BOARD_WRAM, board_wram)
-    MATCHES(CHIP_WRAM, chip_wram)
-    MATCHES(PALETTE_RAM, palette_ram)
-    MATCHES(VRAM, vram)
-    MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
-    MATCHES(ROM_0, rom)
-    MATCHES(ROM_1, rom)
-    MATCHES(ROM_2, rom)
+#define MATCHES_PAK(AREA, area)                                                \
+    case AREA##_REGION:                                                        \
+    case AREA##_REGION + 1:                                                    \
+        if (address > AREA##_START + area.size() - N)                          \
+            break;                                                             \
+        return std::span<const uint8_t>(&area[address - AREA##_START], N);
 
+        MATCHES(BIOS, bios)
+        MATCHES(BOARD_WRAM, board_wram)
+        MATCHES(CHIP_WRAM, chip_wram)
+        MATCHES(PALETTE_RAM, palette_ram)
+        MATCHES(VRAM, vram)
+        MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
+
+        MATCHES_PAK(ROM_0, rom)
+        MATCHES_PAK(ROM_1, rom)
+        MATCHES_PAK(ROM_2, rom)
+
+#undef MATCHES_PAK
 #undef MATCHES
+    }
 
     glogger.error("Invalid memory region read");
     return {};
@@ -64,17 +79,23 @@ Bus::read(uint32_t address) const {
 template<unsigned int N>
 std::optional<std::span<uint8_t>>
 Bus::write(uint32_t address) {
+
+    switch (address >> 24 & 0xFF) {
+
 #define MATCHES(AREA, area)                                                    \
-    if (address >= AREA##_START && address < AREA##_START + area.size())       \
+    case AREA##_REGION:                                                        \
+        if (address > AREA##_START + area.size() - N)                          \
+            break;                                                             \
         return std::span<uint8_t>(&area[address - AREA##_START], N);
 
-    MATCHES(BOARD_WRAM, board_wram)
-    MATCHES(CHIP_WRAM, chip_wram)
-    MATCHES(PALETTE_RAM, palette_ram)
-    MATCHES(VRAM, vram)
-    MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
+        MATCHES(BOARD_WRAM, board_wram)
+        MATCHES(CHIP_WRAM, chip_wram)
+        MATCHES(PALETTE_RAM, palette_ram)
+        MATCHES(VRAM, vram)
+        MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
 
 #undef MATCHES
+    }
 
     glogger.error("Invalid memory region written");
     return {};
