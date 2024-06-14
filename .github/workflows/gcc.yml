@@ -23,8 +23,8 @@ jobs:
       - name: setup
         run: nix develop .#matar -c meson setup $BUILDDIR
 
-      - name: tests
-        run: nix develop .#matar -c ninja test -C $BUILDDIR
-
       - name: build
         run: nix develop .#matar -c ninja -C $BUILDDIR
+
+      - name: tests
+        run: nix develop .#matar -c ninja test -C $BUILDDIR

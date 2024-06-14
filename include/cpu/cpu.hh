@@ -4,6 +4,7 @@
 #include "bus.hh"
 #include "cpu/psr.hh"
 #include "thumb/instruction.hh"
+#include <memory>
 
 #include <cstdint>
 

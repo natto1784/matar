@@ -29,8 +29,8 @@ jobs:
       - name: lint
         run: nix develop .#matar-clang -c ninja clang-tidy -C $BUILDDIR
 
-      - name: tests
-        run: nix develop .#matar-clang -c ninja test -C $BUILDDIR
-
       - name: build
         run: nix develop .#matar-clang -c ninja -C $BUILDDIR
+
+      - name: tests
+        run: nix develop .#matar-clang -c ninja test -C $BUILDDIR
