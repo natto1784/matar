@@ -5,8 +5,9 @@ using namespace matar;
 class CpuFixture {
   public:
     CpuFixture()
-      : bus(Memory(std::array<uint8_t, Memory::BIOS_SIZE>(),
-                   std::vector<uint8_t>(Header::HEADER_SIZE)))
+      : bus(std::shared_ptr<Bus>(
+          new Bus(std::array<uint8_t, Bus::BIOS_SIZE>(),
+                  std::vector<uint8_t>(Header::HEADER_SIZE))))
       , cpu(bus) {}
 
   protected:
@@ -30,7 +31,7 @@ class CpuFixture {
 
     void set_psr(Psr psr, bool spsr = false);
 
-    Bus bus;
+    std::shared_ptr<Bus> bus;
     Cpu cpu;
 
   private:

@@ -43,7 +43,7 @@ uint32_t
 CpuFixture::getr_(uint8_t r, Cpu& cpu) {
     uint32_t addr  = 0x02000000;
     uint8_t offset = r == 15 ? 4 : 0;
-    uint32_t word  = bus.read_word(addr + offset);
+    uint32_t word  = bus->read_word(addr + offset);
     Cpu tmp        = cpu;
     uint32_t ret   = 0xFFFFFFFF;
     uint8_t base   = r ? 0 : 1;
@@ -74,9 +74,9 @@ CpuFixture::getr_(uint8_t r, Cpu& cpu) {
 
     addr += offset;
 
-    ret = bus.read_word(addr);
+    ret = bus->read_word(addr);
 
-    bus.write_word(addr, word);
+    bus->write_word(addr, word);
 
     return ret;
 }

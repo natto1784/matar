@@ -1,5 +1,4 @@
 headers = files(
-  'memory.hh',
   'bus.hh',
   'header.hh',
 )

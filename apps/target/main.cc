@@ -1,8 +1,8 @@
 #include "bus.hh"
 #include "cpu/cpu.hh"
-#include "memory.hh"
 #include "util/loglevel.hh"
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -15,7 +15,7 @@
 int
 main(int argc, const char* argv[]) {
     std::vector<uint8_t> rom;
-    std::array<uint8_t, matar::Memory::BIOS_SIZE> bios = { 0 };
+    std::array<uint8_t, matar::Bus::BIOS_SIZE> bios = { 0 };
 
     auto usage = [argv]() {
         std::cerr << "Usage: " << argv[0] << " <file> [-b <bios>]" << std::endl;
@@ -65,7 +65,7 @@ main(int argc, const char* argv[]) {
         ifile.seekg(0, std::ios::end);
         bios_size = ifile.tellg();
 
-        if (bios_size != matar::Memory::BIOS_SIZE) {
+        if (bios_size != matar::Bus::BIOS_SIZE) {
             throw std::ios::failure("BIOS file has invalid size",
                                     std::error_code());
         }
@@ -87,8 +87,8 @@ main(int argc, const char* argv[]) {
     matar::set_log_level(matar::LogLevel::Debug);
 
     try {
-        matar::Memory memory(std::move(bios), std::move(rom));
-        matar::Bus bus(memory);
+        std::shared_ptr<matar::Bus> bus(
+          new matar::Bus(std::move(bios), std::move(rom)));
         matar::Cpu cpu(bus);
         while (true) {
             cpu.step();

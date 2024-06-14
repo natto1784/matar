@@ -10,7 +10,7 @@
 namespace matar {
 class Cpu {
   public:
-    Cpu(const Bus& bus) noexcept;
+    Cpu(std::shared_ptr<Bus>) noexcept;
 
     void step();
     void chg_mode(const Mode to);

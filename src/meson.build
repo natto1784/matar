@@ -1,5 +1,4 @@
 lib_sources = files(
-  'memory.cc',
   'bus.cc',
 )
 

@@ -7,8 +7,8 @@
 #include <cstdio>
 
 namespace matar {
-Cpu::Cpu(const Bus& bus) noexcept
-  : bus(std::make_shared<Bus>(bus))
+Cpu::Cpu(std::shared_ptr<Bus> bus) noexcept
+  : bus(bus)
   , gpr({ 0 })
   , cpsr(0)
   , spsr(0)
@@ -19,6 +19,10 @@ Cpu::Cpu(const Bus& bus) noexcept
     cpsr.set_irq_disabled(true);
     cpsr.set_fiq_disabled(true);
     cpsr.set_state(State::Arm);
+    uint32_t a = 4444;
+    dbg(this->bus->read_word(0x2000000));
+    this->bus->write_word(0x2000000, a);
+    dbg(this->bus->read_word(0x2000000));
     glogger.info("CPU successfully initialised");
 
     // PC always points to two instructions ahead

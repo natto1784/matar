@@ -532,7 +532,7 @@ TEST_CASE_METHOD(CpuFixture, "PC Relative Load", TAG) {
     setr(15, 0x3003FD5);
     // resetting bit 0 for 0x3003FD5, we get 0x3003FD4
     // 0x3003FD4 + 0x578
-    bus.write_word(0x300454C, 489753492);
+    bus->write_word(0x300454C, 489753492);
 
     CHECK(getr(0) == 0);
     exec(data);
@@ -551,20 +551,20 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Register Offset", TAG) {
 
     SECTION("store") {
         // 0x3003000 + 0x332
-        CHECK(bus.read_word(0x3003332) == 0);
+        CHECK(bus->read_word(0x3003332) == 0);
         exec(data);
-        CHECK(bus.read_word(0x3003332) == 389524259);
+        CHECK(bus->read_word(0x3003332) == 389524259);
 
         // byte
         load->byte = true;
-        bus.write_word(0x3003332, 0);
+        bus->write_word(0x3003332, 0);
         exec(data);
-        CHECK(bus.read_word(0x3003332) == 35);
+        CHECK(bus->read_word(0x3003332) == 35);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(0x3003332, 11123489);
+        bus->write_word(0x3003332, 11123489);
         exec(data);
         CHECK(getr(3) == 11123489);
 
@@ -588,21 +588,21 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
 
     SECTION("SH = 00") {
         // 0x3003000 + 0x332
-        CHECK(bus.read_word(0x3003332) == 0);
+        CHECK(bus->read_word(0x3003332) == 0);
         exec(data);
-        CHECK(bus.read_word(0x3003332) == 43811);
+        CHECK(bus->read_word(0x3003332) == 43811);
     }
 
     SECTION("SH = 01") {
         load->h = true;
-        bus.write_word(0x3003332, 11123489);
+        bus->write_word(0x3003332, 11123489);
         exec(data);
         CHECK(getr(3) == 47905);
     }
 
     SECTION("SH = 10") {
         load->s = true;
-        bus.write_word(0x3003332, 34521594);
+        bus->write_word(0x3003332, 34521594);
         exec(data);
         // sign extended 250 byte (0xFA)
         CHECK(getr(3) == 4294967290);
@@ -611,7 +611,7 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
     SECTION("SH = 11") {
         load->s = true;
         load->h = true;
-        bus.write_word(0x3003332, 11123489);
+        bus->write_word(0x3003332, 11123489);
         // sign extended 47905 halfword (0xBB21)
         exec(data);
         CHECK(getr(3) == 4294949665);
@@ -630,20 +630,20 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Immediate Offset", TAG) {
 
     SECTION("store") {
         // 0x30066A + 0x6E
-        CHECK(bus.read_word(0x30066D8) == 0);
+        CHECK(bus->read_word(0x30066D8) == 0);
         exec(data);
-        CHECK(bus.read_word(0x30066D8) == 389524259);
+        CHECK(bus->read_word(0x30066D8) == 389524259);
 
         // byte
         load->byte = true;
-        bus.write_word(0x30066D8, 0);
+        bus->write_word(0x30066D8, 0);
         exec(data);
-        CHECK(bus.read_word(0x30066D8) == 35);
+        CHECK(bus->read_word(0x30066D8) == 35);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(0x30066D8, 11123489);
+        bus->write_word(0x30066D8, 11123489);
         exec(data);
         CHECK(getr(3) == 11123489);
 
@@ -664,14 +664,14 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Halfword", TAG) {
 
     SECTION("store") {
         // 0x300666A + 0x6E
-        CHECK(bus.read_word(0x30066D8) == 0);
+        CHECK(bus->read_word(0x30066D8) == 0);
         exec(data);
-        CHECK(bus.read_word(0x30066D8) == 43811);
+        CHECK(bus->read_word(0x30066D8) == 43811);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(0x30066D8, 11123489);
+        bus->write_word(0x30066D8, 11123489);
         exec(data);
         CHECK(getr(3) == 47905);
     }
@@ -688,14 +688,14 @@ TEST_CASE_METHOD(CpuFixture, "SP Relative Load", TAG) {
 
     SECTION("store") {
         // 0x3004A8A + 0x328
-        CHECK(bus.read_word(0x3004DB2) == 0);
+        CHECK(bus->read_word(0x3004DB2) == 0);
         exec(data);
-        CHECK(bus.read_word(0x3004DB2) == 2349505744);
+        CHECK(bus->read_word(0x3004DB2) == 2349505744);
     }
 
     SECTION("load") {
         load->load = true;
-        bus.write_word(0x3004DB2, 11123489);
+        bus->write_word(0x3004DB2, 11123489);
         exec(data);
         CHECK(getr(1) == 11123489);
     }
@@ -761,11 +761,11 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
 
         auto checker = [this]() {
             // address
-            CHECK(bus.read_word(address) == 237164);
-            CHECK(bus.read_word(address + alignment) == 679785111);
-            CHECK(bus.read_word(address + alignment * 2) == 905895898);
-            CHECK(bus.read_word(address + alignment * 3) == 131313333);
-            CHECK(bus.read_word(address + alignment * 4) == 131);
+            CHECK(bus->read_word(address) == 237164);
+            CHECK(bus->read_word(address + alignment) == 679785111);
+            CHECK(bus->read_word(address + alignment * 2) == 905895898);
+            CHECK(bus->read_word(address + alignment * 3) == 131313333);
+            CHECK(bus->read_word(address + alignment * 4) == 131);
         };
 
         // set stack pointer to top of stack
@@ -785,7 +785,7 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
             setr(13, address + alignment * 6);
             exec(data);
 
-            CHECK(bus.read_word(address + alignment * 5) == 999304);
+            CHECK(bus->read_word(address + alignment * 5) == 999304);
             checker();
             CHECK(getr(13) == address);
         }
@@ -795,11 +795,11 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
         push->load = true;
 
         // populate memory
-        bus.write_word(address, 237164);
-        bus.write_word(address + alignment, 679785111);
-        bus.write_word(address + alignment * 2, 905895898);
-        bus.write_word(address + alignment * 3, 131313333);
-        bus.write_word(address + alignment * 4, 131);
+        bus->write_word(address, 237164);
+        bus->write_word(address + alignment, 679785111);
+        bus->write_word(address + alignment * 2, 905895898);
+        bus->write_word(address + alignment * 3, 131313333);
+        bus->write_word(address + alignment * 4, 131);
 
         auto checker = [this]() {
             CHECK(getr(0) == 237164);
@@ -828,7 +828,7 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
         SECTION("with SP") {
             push->pclr = true;
             // populate next address
-            bus.write_word(address + alignment * 5, 93333912);
+            bus->write_word(address + alignment * 5, 93333912);
             exec(data);
 
             CHECK(getr(15) == 93333912);
@@ -860,11 +860,11 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
 
         exec(data);
 
-        CHECK(bus.read_word(address) == 237164);
-        CHECK(bus.read_word(address + alignment) == address + alignment * 5);
-        CHECK(bus.read_word(address + alignment * 2) == 905895898);
-        CHECK(bus.read_word(address + alignment * 3) == 131313333);
-        CHECK(bus.read_word(address + alignment * 4) == 131);
+        CHECK(bus->read_word(address) == 237164);
+        CHECK(bus->read_word(address + alignment) == address + alignment * 5);
+        CHECK(bus->read_word(address + alignment * 2) == 905895898);
+        CHECK(bus->read_word(address + alignment * 3) == 131313333);
+        CHECK(bus->read_word(address + alignment * 4) == 131);
         // write back
         CHECK(getr(2) == address);
     }
@@ -873,11 +873,11 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
         push->load = true;
 
         // populate memory
-        bus.write_word(address, 237164);
-        bus.write_word(address + alignment, 679785111);
-        bus.write_word(address + alignment * 2, 905895898);
-        bus.write_word(address + alignment * 3, 131313333);
-        bus.write_word(address + alignment * 4, 131);
+        bus->write_word(address, 237164);
+        bus->write_word(address + alignment, 679785111);
+        bus->write_word(address + alignment * 2, 905895898);
+        bus->write_word(address + alignment * 3, 131313333);
+        bus->write_word(address + alignment * 4, 131);
 
         // base
         setr(2, address);

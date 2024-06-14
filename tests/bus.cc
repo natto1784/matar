@@ -8,20 +8,111 @@ using namespace matar;
 class BusFixture {
   public:
     BusFixture()
-      : bus(Memory(std::array<uint8_t, Memory::BIOS_SIZE>(),
-                   std::vector<uint8_t>(Header::HEADER_SIZE))) {}
+      : bus(std::array<uint8_t, Bus::BIOS_SIZE>(),
+            std::vector<uint8_t>(Header::HEADER_SIZE)) {}
 
   protected:
     Bus bus;
 };
 
-TEST_CASE_METHOD(BusFixture, "Byte", TAG) {
-    CHECK(bus.read_byte(0x30001A9) == 0);
+TEST_CASE("bios", TAG) {
+    std::array<uint8_t, Bus::BIOS_SIZE> bios = { 0 };
 
-    bus.write_byte(0x30001A9, 0xEC);
-    CHECK(bus.read_byte(0x30001A9) == 0xEC);
-    CHECK(bus.read_word(0x30001A9) == 0xEC);
-    CHECK(bus.read_halfword(0x30001A9) == 0xEC);
+    // populate bios
+    bios[0]      = 0xAC;
+    bios[0x3FFF] = 0x48;
+    bios[0x2A56] = 0x10;
+
+    Bus bus(std::move(bios), std::vector<uint8_t>(Header::HEADER_SIZE));
+
+    CHECK(bus.read_byte(0) == 0xAC);
+    CHECK(bus.read_byte(0x3FFF) == 0x48);
+    CHECK(bus.read_byte(0x2A56) == 0x10);
+}
+
+TEST_CASE_METHOD(BusFixture, "board wram", TAG) {
+    bus.write_byte(0x2000000, 0xAC);
+    CHECK(bus.read_byte(0x2000000) == 0xAC);
+
+    bus.write_byte(0x203FFFF, 0x48);
+    CHECK(bus.read_byte(0x203FFFF) == 0x48);
+
+    bus.write_byte(0x2022A56, 0x10);
+    CHECK(bus.read_byte(0x2022A56) == 0x10);
+}
+
+TEST_CASE_METHOD(BusFixture, "chip wram", TAG) {
+    bus.write_byte(0x3000000, 0xAC);
+    CHECK(bus.read_byte(0x3000000) == 0xAC);
+
+    bus.write_byte(0x3007FFF, 0x48);
+    CHECK(bus.read_byte(0x3007FFF) == 0x48);
+
+    bus.write_byte(0x3002A56, 0x10);
+    CHECK(bus.read_byte(0x3002A56) == 0x10);
+}
+
+TEST_CASE_METHOD(BusFixture, "palette ram", TAG) {
+    bus.write_byte(0x5000000, 0xAC);
+    CHECK(bus.read_byte(0x5000000) == 0xAC);
+
+    bus.write_byte(0x50003FF, 0x48);
+    CHECK(bus.read_byte(0x50003FF) == 0x48);
+
+    bus.write_byte(0x5000156, 0x10);
+    CHECK(bus.read_byte(0x5000156) == 0x10);
+}
+
+TEST_CASE_METHOD(BusFixture, "video ram", TAG) {
+    bus.write_byte(0x6000000, 0xAC);
+    CHECK(bus.read_byte(0x6000000) == 0xAC);
+
+    bus.write_byte(0x6017FFF, 0x48);
+    CHECK(bus.read_byte(0x6017FFF) == 0x48);
+
+    bus.write_byte(0x6012A56, 0x10);
+    CHECK(bus.read_byte(0x6012A56) == 0x10);
+}
+
+TEST_CASE_METHOD(BusFixture, "oam obj ram", TAG) {
+    bus.write_byte(0x7000000, 0xAC);
+    CHECK(bus.read_byte(0x7000000) == 0xAC);
+
+    bus.write_byte(0x70003FF, 0x48);
+    CHECK(bus.read_byte(0x70003FF) == 0x48);
+
+    bus.write_byte(0x7000156, 0x10);
+    CHECK(bus.read_byte(0x7000156) == 0x10);
+}
+
+TEST_CASE("rom", TAG) {
+    std::vector<uint8_t> rom(32 * 1024 * 1024, 0);
+
+    // populate rom
+    rom[0]         = 0xAC;
+    rom[0x1FFFFFF] = 0x48;
+    rom[0x0EF0256] = 0x10;
+
+    // 32 megabyte ROM
+    Bus bus(std::array<uint8_t, Bus::BIOS_SIZE>(), std::move(rom));
+
+    SECTION("ROM1") {
+        CHECK(bus.read_byte(0x8000000) == 0xAC);
+        CHECK(bus.read_byte(0x9FFFFFF) == 0x48);
+        CHECK(bus.read_byte(0x8EF0256) == 0x10);
+    }
+
+    SECTION("ROM2") {
+        CHECK(bus.read_byte(0xA000000) == 0xAC);
+        CHECK(bus.read_byte(0xBFFFFFF) == 0x48);
+        CHECK(bus.read_byte(0xAEF0256) == 0x10);
+    }
+
+    SECTION("ROM3") {
+        CHECK(bus.read_byte(0xC000000) == 0xAC);
+        CHECK(bus.read_byte(0xDFFFFFF) == 0x48);
+        CHECK(bus.read_byte(0xCEF0256) == 0x10);
+    }
 }
 
 TEST_CASE_METHOD(BusFixture, "Halfword", TAG) {
