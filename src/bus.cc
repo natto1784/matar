@@ -4,13 +4,11 @@
 
 namespace matar {
 
-static constexpr uint32_t IO_START = 0x4000000;
-static constexpr uint32_t IO_END   = 0x40003FE;
-
 Bus::Bus(Private,
          std::array<uint8_t, BIOS_SIZE>&& bios,
          std::vector<uint8_t>&& rom)
-  : bios(std::move(bios))
+  : cycle_map(init_cycle_count())
+  , bios(std::move(bios))
   , rom(std::move(rom)) {
     std::string bios_hash = crypto::sha256(this->bios);
     static constexpr std::string_view expected_hash =
@@ -38,11 +36,52 @@ Bus::init(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom) {
     return self;
 }
 
+constexpr decltype(Bus::cycle_map)
+Bus::init_cycle_count() {
+    /*
+      Region        Bus   Read      Write     Cycles
+      BIOS ROM      32    8/16/32   -         1/1/1
+      Work RAM 32K  32    8/16/32   8/16/32   1/1/1
+      I/O           32    8/16/32   8/16/32   1/1/1
+      OAM           32    8/16/32   16/32     1/1/1 *
+      Work RAM 256K 16    8/16/32   8/16/32   3/3/6 **
+      Palette RAM   16    8/16/32   16/32     1/1/2 *
+      VRAM          16    8/16/32   16/32     1/1/2 *
+      GamePak ROM   16    8/16/32   -         5/5/8 **|***
+      GamePak Flash 16    8/16/32   16/32     5/5/8 **|***
+      GamePak SRAM  8     8         8         5     **
+
+    Timing Notes:
+
+      *   Plus 1 cycle if GBA accesses video memory at the same time.
+      **  Default waitstate settings, see System Control chapter.
+      *** Separate timings for sequential, and non-sequential accesses.
+      One cycle equals approx. 59.59ns (ie. 16.78MHz clock).
+    */
+
+    decltype(cycle_map) map;
+    map.fill({ 1, 1, 1, 1 });
+
+    /* used fill instead of this
+    map[BIOS_REGION]      = { 1, 1, 1, 1 };
+    map[CHIP_WRAM_REGION] = { 1, 1, 1, 1 };
+    map[IO_REGION]        = { 1, 1, 1, 1 };
+    map[OAM_REGION]       = { 1, 1, 1, 1 };
+    */
+    map[3]                  = { 1, 1, 1, 1 };
+    map[BOARD_WRAM_REGION]  = { .n16 = 3, .n32 = 6, .s16 = 3, .s32 = 6 };
+    map[PALETTE_RAM_REGION] = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
+    map[VRAM_REGION]        = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
+    // TODO: GamePak access cycles
+
+    return map;
+}
+
 template<unsigned int N>
 std::optional<std::span<const uint8_t>>
 Bus::read(uint32_t address) const {
 
-    switch (address >> 24 & 0xFF) {
+    switch (address >> 24 & 0xF) {
 
 #define MATCHES(AREA, area)                                                    \
     case AREA##_REGION:                                                        \
@@ -80,7 +119,7 @@ template<unsigned int N>
 std::optional<std::span<uint8_t>>
 Bus::write(uint32_t address) {
 
-    switch (address >> 24 & 0xFF) {
+    switch (address >> 24 & 0xF) {
 
 #define MATCHES(AREA, area)                                                    \
     case AREA##_REGION:                                                        \
@@ -97,12 +136,14 @@ Bus::write(uint32_t address) {
 #undef MATCHES
     }
 
-    glogger.error("Invalid memory region written");
     return {};
 }
 
 uint8_t
-Bus::read_byte(uint32_t address) {
+Bus::read_byte(uint32_t address, bool sequential) {
+    auto cc = cycle_map[address >> 24 & 0xF];
+    cycles += sequential ? cc.s16 : cc.n16;
+
     if (address >= IO_START && address <= IO_END)
         return io->read_byte(address);
 
@@ -111,7 +152,10 @@ Bus::read_byte(uint32_t address) {
 }
 
 void
-Bus::write_byte(uint32_t address, uint8_t byte) {
+Bus::write_byte(uint32_t address, uint8_t byte, bool sequential) {
+    auto cc = cycle_map[address >> 24 & 0xF];
+    cycles += sequential ? cc.s16 : cc.n16;
+
     if (address >= IO_START && address <= IO_END) {
         io->write_byte(address, byte);
         return;
@@ -124,9 +168,12 @@ Bus::write_byte(uint32_t address, uint8_t byte) {
 }
 
 uint16_t
-Bus::read_halfword(uint32_t address) {
+Bus::read_halfword(uint32_t address, bool sequential) {
     if (address & 0b01)
         glogger.warn("Reading a non aligned halfword address");
+
+    auto cc = cycle_map[address >> 24 & 0xF];
+    cycles += sequential ? cc.s16 : cc.n16;
 
     if (address >= IO_START && address <= IO_END)
         return io->read_halfword(address);
@@ -137,9 +184,12 @@ Bus::read_halfword(uint32_t address) {
 }
 
 void
-Bus::write_halfword(uint32_t address, uint16_t halfword) {
+Bus::write_halfword(uint32_t address, uint16_t halfword, bool sequential) {
     if (address & 0b01)
         glogger.warn("Writing to a non aligned halfword address");
+
+    auto cc = cycle_map[address >> 24 & 0xF];
+    cycles += sequential ? cc.s16 : cc.n16;
 
     if (address >= IO_START && address <= IO_END) {
         io->write_halfword(address, halfword);
@@ -156,9 +206,12 @@ Bus::write_halfword(uint32_t address, uint16_t halfword) {
 }
 
 uint32_t
-Bus::read_word(uint32_t address) {
+Bus::read_word(uint32_t address, bool sequential) {
     if (address & 0b11)
         glogger.warn("Reading a non aligned word address");
+
+    auto cc = cycle_map[address >> 24 & 0xF];
+    cycles += sequential ? cc.s32 : cc.n32;
 
     if (address >= IO_START && address <= IO_END)
         return io->read_word(address);
@@ -171,9 +224,12 @@ Bus::read_word(uint32_t address) {
 }
 
 void
-Bus::write_word(uint32_t address, uint32_t word) {
+Bus::write_word(uint32_t address, uint32_t word, bool sequential) {
     if (address & 0b11)
         glogger.warn("Writing to a non aligned word address");
+
+    auto cc = cycle_map[address >> 24 & 0xF];
+    cycles += sequential ? cc.s32 : cc.n32;
 
     if (address >= IO_START && address <= IO_END) {
         io->write_word(address, word);

@@ -88,4 +88,21 @@ sbc(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c) {
 
     return result & 0xFFFFFFFF;
 }
+
+uint8_t
+multiplier_array_cycles(uint32_t x, bool zeroes_only) {
+    // set zeroes_only to evaluate first condition that checks ones to false
+
+    if ((!zeroes_only && (x & 0xFFFFFF00) == 0xFFFFFF00) ||
+        (x & 0xFFFFFF00) == 0)
+        return 1;
+    if ((!zeroes_only && (x & 0xFFFF0000) == 0xFFFF0000) ||
+        (x & 0xFFFF0000) == 0)
+        return 2;
+    if ((!zeroes_only && (x & 0xFF000000) == 0xFF000000) ||
+        (x & 0xFF000000) == 0)
+        return 3;
+    return 4;
+};
+
 }

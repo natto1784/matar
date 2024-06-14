@@ -129,11 +129,10 @@ Cpu::step() {
         // word align
         rst_bit(pc, 1);
 
-        uint32_t next_opcode = bus->read_word(pc);
         arm::Instruction instruction(opcodes[0]);
 
         opcodes[0] = opcodes[1];
-        opcodes[1] = next_opcode;
+        opcodes[1] = bus->read_word(pc, sequential);
 
 #ifdef DISASSEMBLER
         glogger.info("0x{:08X} : {}",
@@ -149,11 +148,10 @@ Cpu::step() {
         } else
             advance_pc_arm();
     } else {
-        uint32_t next_opcode = bus->read_halfword(pc);
         thumb::Instruction instruction(opcodes[0]);
 
         opcodes[0] = opcodes[1];
-        opcodes[1] = next_opcode;
+        opcodes[1] = bus->read_halfword(pc, sequential);
 
 #ifdef DISASSEMBLER
         glogger.info("0x{:08X} : {}",
@@ -162,6 +160,7 @@ Cpu::step() {
 #endif
 
         instruction.exec(*this);
+
         if (is_flushed) {
             flush_pipeline();
             is_flushed = false;

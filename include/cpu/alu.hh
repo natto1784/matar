@@ -49,4 +49,7 @@ add(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c = 0);
 
 uint32_t
 sbc(uint32_t a, uint32_t b, bool& carry, bool& overflow, bool c);
+
+uint8_t
+multiplier_array_cycles(uint32_t x, bool zeroes_only = false);
 }

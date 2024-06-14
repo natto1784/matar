@@ -24,6 +24,14 @@ Instruction::exec(Cpu& cpu) {
     std::visit(
       overloaded{
         [&cpu, pc_warn](BranchAndExchange& data) {
+            /*
+              S -> reading instruction in step()
+              N -> fetch from the new address in branch
+              S -> last opcode fetch at +L to refill the pipeline
+              Total = 2S + N cycles
+                      1S done, S+N taken care of by flush_pipeline()
+            */
+
             uint32_t addr = cpu.gpr[data.rn];
             State state   = static_cast<State>(get_bit(addr, 0));
 
@@ -48,6 +56,14 @@ Instruction::exec(Cpu& cpu) {
             cpu.is_flushed = true;
         },
         [&cpu](Branch& data) {
+            /*
+              S -> reading instruction in step()
+              N -> fetch from the new address in branch
+              S -> last opcode fetch at +L to refill the pipeline
+              Total = 2S + N cycles
+                      1S done, S+N taken care of by flush_pipeline()
+            */
+
             if (data.link)
                 cpu.gpr[14] = cpu.pc - INSTRUCTION_SIZE;
 
@@ -57,6 +73,19 @@ Instruction::exec(Cpu& cpu) {
             cpu.is_flushed = true;
         },
         [&cpu, pc_error](Multiply& data) {
+            /*
+              S -> reading instruction in step()
+              mI -> m internal cycles
+              I -> only when accumulating
+              let v = data at rn
+              m = 1 if bits [32:8] of v are all zero or all one
+              m = 2         [32:16]
+              m = 3         [32:24]
+              m = 4         otherwise
+
+              Total = S + mI or S + (m+1)I
+            */
+
             if (data.rd == data.rm)
                 glogger.error("rd and rm are not distinct in {}",
                               typeid(data).name());
@@ -65,8 +94,17 @@ Instruction::exec(Cpu& cpu) {
             pc_error(data.rd);
             pc_error(data.rd);
 
-            cpu.gpr[data.rd] = cpu.gpr[data.rm] * cpu.gpr[data.rs] +
-                               (data.acc ? cpu.gpr[data.rn] : 0);
+            // mI
+            for (int i = 0; i < multiplier_array_cycles(cpu.gpr[data.rs]); i++)
+                cpu.internal_cycle();
+
+            cpu.gpr[data.rd] = cpu.gpr[data.rm] * cpu.gpr[data.rs];
+
+            if (data.acc) {
+                cpu.gpr[data.rd] += cpu.gpr[data.rn];
+                // 1I
+                cpu.internal_cycle();
+            }
 
             if (data.set) {
                 cpu.cpsr.set_z(cpu.gpr[data.rd] == 0);
@@ -75,6 +113,21 @@ Instruction::exec(Cpu& cpu) {
             }
         },
         [&cpu, pc_error](MultiplyLong& data) {
+            /*
+              S -> reading instruction in step()
+              (m+1)I -> m + 1 internal cycles
+              I -> only when accumulating
+              let v = data at rn
+              m = 1 if bits [32:8] of v are all zeroes (or all ones if signed)
+              m = 2         [32:16]
+              m = 3         [32:24]
+              m = 4         otherwise
+
+              Total = S + mI or S + (m+1)I
+
+              Total = S + (m+1)I or S + (m+2)I
+            */
+
             if (data.rdhi == data.rdlo || data.rdhi == data.rm ||
                 data.rdlo == data.rm)
                 glogger.error("rdhi, rdlo and rm are not distinct in {}",
@@ -84,6 +137,16 @@ Instruction::exec(Cpu& cpu) {
             pc_error(data.rdlo);
             pc_error(data.rm);
             pc_error(data.rs);
+
+            // 1I
+            if (data.acc)
+                cpu.internal_cycle();
+
+            // m+1 internal cycles
+            for (int i = 0;
+                 i <= multiplier_array_cycles(cpu.gpr[data.rs], data.uns);
+                 i++)
+                cpu.internal_cycle();
 
             if (data.uns) {
                 auto cast = [](uint32_t x) -> uint64_t {
@@ -121,21 +184,53 @@ Instruction::exec(Cpu& cpu) {
                 cpu.cpsr.set_v(0);
             }
         },
-        [](Undefined) { glogger.warn("Undefined instruction"); },
+        [](Undefined) {
+            // this should be 2S + N + I, should i flush the pipeline? i dont
+            // know. TODO: study
+            glogger.warn("Undefined instruction");
+        },
         [&cpu, pc_error](SingleDataSwap& data) {
+            /*
+              N -> reading instruction in step()
+              N -> unrelated read
+              S -> related write
+              I -> earlier read value is written to register
+              Total = S + 2N +I
+            */
+
             pc_error(data.rm);
             pc_error(data.rn);
             pc_error(data.rd);
 
             if (data.byte) {
-                cpu.gpr[data.rd] = cpu.bus->read_byte(cpu.gpr[data.rn]);
-                cpu.bus->write_byte(cpu.gpr[data.rn], cpu.gpr[data.rm] & 0xFF);
+                cpu.gpr[data.rd] = cpu.bus->read_byte(cpu.gpr[data.rn], false);
+                cpu.bus->write_byte(
+                  cpu.gpr[data.rn], cpu.gpr[data.rm] & 0xFF, true);
             } else {
-                cpu.gpr[data.rd] = cpu.bus->read_word(cpu.gpr[data.rn]);
-                cpu.bus->write_word(cpu.gpr[data.rn], cpu.gpr[data.rm]);
+                cpu.gpr[data.rd] = cpu.bus->read_word(cpu.gpr[data.rn], false);
+                cpu.bus->write_word(cpu.gpr[data.rn], cpu.gpr[data.rm], true);
             }
+
+            cpu.internal_cycle();
+            // last write address is unrelated to next
+            cpu.sequential = false;
         },
         [&cpu, pc_warn, pc_error](SingleDataTransfer& data) {
+            /*
+              Load
+              ====
+              S   -> reading instruction in step()
+              N   -> read from target
+              I   -> stored in register
+              N+S -> if PC is written - taken care of by flush_pipeline()
+              Total = S + N + I or 2S + 2N + I
+
+              Store
+              =====
+              N -> calculating memory address
+              N -> write at target
+              Total = 2N
+            */
             uint32_t offset  = 0;
             uint32_t address = cpu.gpr[data.rn];
 
@@ -178,10 +273,17 @@ Instruction::exec(Cpu& cpu) {
             if (data.load) {
                 // byte
                 if (data.byte)
-                    cpu.gpr[data.rd] = cpu.bus->read_byte(address);
+                    cpu.gpr[data.rd] = cpu.bus->read_byte(address, false);
                 // word
                 else
-                    cpu.gpr[data.rd] = cpu.bus->read_word(address);
+                    cpu.gpr[data.rd] = cpu.bus->read_word(address, false);
+
+                // N + S
+                if (data.rd == cpu.PC_INDEX)
+                    cpu.is_flushed = true;
+
+                // I
+                cpu.internal_cycle();
                 // store
             } else {
                 // take PC into consideration
@@ -190,10 +292,11 @@ Instruction::exec(Cpu& cpu) {
 
                 // byte
                 if (data.byte)
-                    cpu.bus->write_byte(address, cpu.gpr[data.rd] & 0xFF);
+                    cpu.bus->write_byte(
+                      address, cpu.gpr[data.rd] & 0xFF, false);
                 // word
                 else
-                    cpu.bus->write_word(address, cpu.gpr[data.rd]);
+                    cpu.bus->write_word(address, cpu.gpr[data.rd], false);
             }
 
             if (!data.pre)
@@ -202,10 +305,26 @@ Instruction::exec(Cpu& cpu) {
             if (!data.pre || data.write)
                 cpu.gpr[data.rn] = address;
 
-            if (data.rd == cpu.PC_INDEX && data.load)
-                cpu.is_flushed = true;
+            // last read/write is unrelated, this will be overwriten if flushed
+            cpu.sequential = false;
         },
         [&cpu, pc_warn, pc_error](HalfwordTransfer& data) {
+            /*
+              Load
+              ====
+              S   -> reading instruction in step()
+              N   -> read from target
+              I   -> stored in register
+              N+S -> if PC is written - taken care of by flush_pipeline()
+              Total = S + N + I or 2S + 2N + I
+
+              Store
+              =====
+              N -> calculating memory address
+              N -> write at target
+              Total = 2N
+            */
+
             uint32_t address = cpu.gpr[data.rn];
             uint32_t offset  = 0;
 
@@ -240,7 +359,8 @@ Instruction::exec(Cpu& cpu) {
                 if (data.sign) {
                     // halfword
                     if (data.half) {
-                        cpu.gpr[data.rd] = cpu.bus->read_halfword(address);
+                        cpu.gpr[data.rd] =
+                          cpu.bus->read_halfword(address, false);
 
                         // sign extend the halfword
                         cpu.gpr[data.rd] =
@@ -248,7 +368,7 @@ Instruction::exec(Cpu& cpu) {
 
                         // byte
                     } else {
-                        cpu.gpr[data.rd] = cpu.bus->read_byte(address);
+                        cpu.gpr[data.rd] = cpu.bus->read_byte(address, false);
 
                         // sign extend the byte
                         cpu.gpr[data.rd] =
@@ -256,8 +376,15 @@ Instruction::exec(Cpu& cpu) {
                     }
                     // unsigned halfword
                 } else if (data.half) {
-                    cpu.gpr[data.rd] = cpu.bus->read_halfword(address);
+                    cpu.gpr[data.rd] = cpu.bus->read_halfword(address, false);
                 }
+
+                // I
+                cpu.internal_cycle();
+
+                if (data.rd == cpu.PC_INDEX)
+                    cpu.is_flushed = true;
+
                 // store
             } else {
                 // take PC into consideration
@@ -266,7 +393,7 @@ Instruction::exec(Cpu& cpu) {
 
                 // halfword
                 if (data.half)
-                    cpu.bus->write_halfword(address, cpu.gpr[data.rd]);
+                    cpu.bus->write_halfword(address, cpu.gpr[data.rd], false);
             }
 
             if (!data.pre)
@@ -275,15 +402,34 @@ Instruction::exec(Cpu& cpu) {
             if (!data.pre || data.write)
                 cpu.gpr[data.rn] = address;
 
-            if (data.rd == cpu.PC_INDEX && data.load)
-                cpu.is_flushed = true;
+            // last read/write is unrelated, this will be overwriten if flushed
+            cpu.sequential = false;
         },
         [&cpu, pc_error](BlockDataTransfer& data) {
+            /*
+              Load
+              ====
+              S       -> reading instruction in step()
+              N       -> unrelated read from target
+              (n-1) S -> next n - 1 related reads from target
+              I       -> stored in register
+              N+S     -> if PC is written - taken care of by flush_pipeline()
+              Total = nS + N + I or (n+1)S + 2N + I
+
+              Store
+              =====
+              N       -> calculating memory address
+              N       -> unrelated write at target
+              (n-1) S -> next n - 1 related writes
+              Total = 2N + (n-1)S
+            */
+
             static constexpr uint8_t alignment = 4; // word
 
             uint32_t address = cpu.gpr[data.rn];
             Mode mode        = cpu.cpsr.mode();
             int8_t i         = 0;
+            bool sequential  = false;
 
             pc_error(data.rn);
 
@@ -308,40 +454,54 @@ Instruction::exec(Cpu& cpu) {
                 address += (data.up ? alignment : -alignment);
 
             if (data.load) {
-                if (get_bit(data.regs, cpu.PC_INDEX) && data.s && data.load) {
+                if (get_bit(data.regs, cpu.PC_INDEX)) {
+                    cpu.is_flushed = true;
+
                     // current mode's cpu.spsr is already loaded when it was
                     // switched
-                    cpu.spsr = cpu.cpsr;
+                    if (data.s)
+                        cpu.spsr = cpu.cpsr;
                 }
 
                 if (data.up) {
                     for (i = 0; i < cpu.GPR_COUNT; i++) {
                         if (get_bit(data.regs, i)) {
-                            cpu.gpr[i] = cpu.bus->read_word(address);
+                            cpu.gpr[i] =
+                              cpu.bus->read_word(address, sequential);
                             address += alignment;
+                            sequential = true;
                         }
                     }
                 } else {
                     for (i = cpu.GPR_COUNT - 1; i >= 0; i--) {
                         if (get_bit(data.regs, i)) {
-                            cpu.gpr[i] = cpu.bus->read_word(address);
+                            cpu.gpr[i] =
+                              cpu.bus->read_word(address, sequential);
                             address -= alignment;
+                            sequential = true;
                         }
                     }
                 }
+
+                // I
+                cpu.internal_cycle();
             } else {
                 if (data.up) {
                     for (i = 0; i < cpu.GPR_COUNT; i++) {
                         if (get_bit(data.regs, i)) {
-                            cpu.bus->write_word(address, cpu.gpr[i]);
+                            cpu.bus->write_word(
+                              address, cpu.gpr[i], sequential);
                             address += alignment;
+                            sequential = true;
                         }
                     }
                 } else {
                     for (i = cpu.GPR_COUNT - 1; i >= 0; i--) {
                         if (get_bit(data.regs, i)) {
-                            cpu.bus->write_word(address, cpu.gpr[i]);
+                            cpu.bus->write_word(
+                              address, cpu.gpr[i], sequential);
                             address -= alignment;
+                            sequential = true;
                         }
                     }
                 }
@@ -354,13 +514,18 @@ Instruction::exec(Cpu& cpu) {
             if (!data.pre || data.write)
                 cpu.gpr[data.rn] = address;
 
-            if (data.load && get_bit(data.regs, cpu.PC_INDEX))
-                cpu.is_flushed = true;
-
             // load back the original mode registers
             cpu.chg_mode(mode);
+
+            // last read/write is unrelated, this will be overwriten if flushed
+            cpu.sequential = false;
         },
         [&cpu, pc_error](PsrTransfer& data) {
+            /*
+              S -> prefetched instruction in step()
+              Total = 1S cycle
+            */
+
             if (data.spsr && cpu.cpsr.mode() == Mode::User) {
                 glogger.error("Accessing CPU.SPSR in User mode in {}",
                               typeid(data).name());
@@ -396,6 +561,24 @@ Instruction::exec(Cpu& cpu) {
             }
         },
         [&cpu, pc_error](DataProcessing& data) {
+            /*
+              Always
+              ======
+              S -> prefetched instruction in step()
+
+              With Register specified shift
+              =============================
+              I -> internal cycle
+
+              When PC is written
+              ==================
+              N -> fetch from the new address in branch
+              S -> last opcode fetch at +L to refill the pipeline
+              S+N taken care of by flush_pipeline()
+
+              Total = S or S + I or 2S + N + I or 2S + N cycles
+            */
+
             using OpCode = DataProcessing::OpCode;
 
             uint32_t op_1 = cpu.gpr[data.rn];
@@ -425,6 +608,10 @@ Instruction::exec(Cpu& cpu) {
                 // PC is 12 bytes ahead when shifting
                 if (data.rn == cpu.PC_INDEX)
                     op_1 += INSTRUCTION_SIZE;
+
+                // 1I when register specified shift
+                if (shift->data.operand)
+                    cpu.internal_cycle();
             }
 
             bool overflow = cpu.cpsr.v();

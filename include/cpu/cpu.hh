@@ -16,6 +16,23 @@ class Cpu {
     void step();
     void chg_mode(const Mode to);
 
+    bool is_flushed = false;
+    inline void flush_pipeline() {
+        is_flushed = true;
+        if (cpsr.state() == State::Arm) {
+            opcodes[0] = bus->read_word(pc, false);
+            advance_pc_arm();
+            opcodes[1] = bus->read_word(pc);
+            advance_pc_arm();
+        } else {
+            opcodes[0] = bus->read_halfword(pc, false);
+            advance_pc_thumb();
+            opcodes[1] = bus->read_halfword(pc);
+            advance_pc_thumb();
+        }
+        sequential = true;
+    };
+
   private:
     friend void arm::Instruction::exec(Cpu& cpu);
     friend void thumb::Instruction::exec(Cpu& cpu);
@@ -66,26 +83,15 @@ class Cpu {
         Psr und;
     } spsr_banked = {}; // banked saved program status registers
 
+    inline void internal_cycle() { bus->internal_cycle(); }
+
+    // whether read is going to be sequential or not
+    bool sequential = true;
+
     // raw instructions in the pipeline
     std::array<uint32_t, 2> opcodes = {};
 
     inline void advance_pc_arm() { pc += arm::INSTRUCTION_SIZE; };
     inline void advance_pc_thumb() { pc += thumb::INSTRUCTION_SIZE; }
-
-    bool is_flushed = false;
-    inline void flush_pipeline() {
-        is_flushed = true;
-        if (cpsr.state() == State::Arm) {
-            opcodes[0] = bus->read_word(pc);
-            advance_pc_arm();
-            opcodes[1] = bus->read_word(pc);
-            advance_pc_arm();
-        } else {
-            opcodes[0] = bus->read_halfword(pc);
-            advance_pc_thumb();
-            opcodes[1] = bus->read_halfword(pc);
-            advance_pc_thumb();
-        }
-    };
 };
 }
