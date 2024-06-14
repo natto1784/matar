@@ -87,12 +87,14 @@ main(int argc, const char* argv[]) {
     matar::set_log_level(matar::LogLevel::Debug);
 
     try {
-        std::shared_ptr<matar::Bus> bus(
-          new matar::Bus(std::move(bios), std::move(rom)));
+        std::shared_ptr<matar::Bus> bus =
+          matar::Bus::init(std::move(bios), std::move(rom));
+
         matar::Cpu cpu(bus);
+
         while (true) {
             cpu.step();
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     } catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;

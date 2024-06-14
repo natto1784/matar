@@ -86,6 +86,9 @@ ADDR HALTCNT = 0x4000301;
 
 #undef ADDR
 
+IoDevices::IoDevices(std::weak_ptr<Bus> bus)
+  : bus(bus) {}
+
 uint8_t
 IoDevices::read_byte(uint32_t address) const {
     uint16_t halfword = read_halfword(address & ~1);

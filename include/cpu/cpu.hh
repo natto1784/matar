@@ -30,10 +30,10 @@ class Cpu {
     static constexpr uint8_t GPR_OLD_FIRST = 8;
 
     std::shared_ptr<Bus> bus;
-    std::array<uint32_t, GPR_COUNT> gpr; // general purpose registers
+    std::array<uint32_t, GPR_COUNT> gpr = {}; // general purpose registers
 
-    Psr cpsr; // current program status register
-    Psr spsr; // status program status register
+    Psr cpsr = {}; // current program status register
+    Psr spsr = {}; // status program status register
 
     static constexpr uint8_t SP_INDEX = 13;
     static_assert(SP_INDEX < GPR_COUNT);
@@ -56,7 +56,7 @@ class Cpu {
 
         // visible registers before the mode switch
         std::array<uint32_t, GPR_COUNT - GPR_OLD_FIRST - 1> old;
-    } gpr_banked; // banked general purpose registers
+    } gpr_banked = {}; // banked general purpose registers
 
     struct {
         Psr fiq;

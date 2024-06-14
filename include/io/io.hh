@@ -2,10 +2,14 @@
 #include "lcd.hh"
 #include "sound.hh"
 #include <cstdint>
+#include <memory>
 
 namespace matar {
+class Bus;
 class IoDevices {
   public:
+    IoDevices(std::weak_ptr<Bus>);
+
     uint8_t read_byte(uint32_t) const;
     void write_byte(uint32_t, uint8_t);
 
@@ -28,5 +32,7 @@ class IoDevices {
 
     struct lcd lcd     = {};
     struct sound sound = {};
+
+    std::weak_ptr<Bus> bus;
 };
 }

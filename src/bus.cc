@@ -7,13 +7,10 @@ namespace matar {
 static constexpr uint32_t IO_START = 0x4000000;
 static constexpr uint32_t IO_END   = 0x40003FE;
 
-Bus::Bus(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom)
+Bus::Bus(Private,
+         std::array<uint8_t, BIOS_SIZE>&& bios,
+         std::vector<uint8_t>&& rom)
   : bios(std::move(bios))
-  , board_wram({ 0 })
-  , chip_wram({ 0 })
-  , palette_ram({ 0 })
-  , vram({ 0 })
-  , oam_obj_attr({ 0 })
   , rom(std::move(rom)) {
     std::string bios_hash = crypto::sha256(this->bios);
     static constexpr std::string_view expected_hash =
@@ -32,6 +29,14 @@ Bus::Bus(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom)
     glogger.info("Memory successfully initialised");
     glogger.info("Cartridge Title: {}", header.title);
 };
+
+std::shared_ptr<Bus>
+Bus::init(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom) {
+    auto self =
+      std::make_shared<Bus>(Private(), std::move(bios), std::move(rom));
+    self->io = std::make_unique<IoDevices>(self);
+    return self;
+}
 
 template<unsigned int N>
 std::optional<std::span<const uint8_t>>
@@ -78,7 +83,7 @@ Bus::write(uint32_t address) {
 uint8_t
 Bus::read_byte(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
-        return io.read_byte(address);
+        return io->read_byte(address);
 
     auto data = read<1>(address);
     return data.transform([](auto value) { return value[0]; }).value_or(0xFF);
@@ -87,7 +92,7 @@ Bus::read_byte(uint32_t address) {
 void
 Bus::write_byte(uint32_t address, uint8_t byte) {
     if (address >= IO_START && address <= IO_END) {
-        io.write_byte(address, byte);
+        io->write_byte(address, byte);
         return;
     }
 
@@ -103,7 +108,7 @@ Bus::read_halfword(uint32_t address) {
         glogger.warn("Reading a non aligned halfword address");
 
     if (address >= IO_START && address <= IO_END)
-        return io.read_halfword(address);
+        return io->read_halfword(address);
 
     return read<2>(address)
       .transform([](auto value) { return value[0] | value[1] << 8; })
@@ -116,7 +121,7 @@ Bus::write_halfword(uint32_t address, uint16_t halfword) {
         glogger.warn("Writing to a non aligned halfword address");
 
     if (address >= IO_START && address <= IO_END) {
-        io.write_halfword(address, halfword);
+        io->write_halfword(address, halfword);
         return;
     }
 
@@ -135,7 +140,7 @@ Bus::read_word(uint32_t address) {
         glogger.warn("Reading a non aligned word address");
 
     if (address >= IO_START && address <= IO_END)
-        return io.read_word(address);
+        return io->read_word(address);
 
     return read<4>(address)
       .transform([](auto value) {
@@ -150,7 +155,7 @@ Bus::write_word(uint32_t address, uint32_t word) {
         glogger.warn("Writing to a non aligned word address");
 
     if (address >= IO_START && address <= IO_END) {
-        io.write_word(address, word);
+        io->write_word(address, word);
         return;
     }
 
