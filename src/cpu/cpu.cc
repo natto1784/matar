@@ -3,31 +3,18 @@
 #include "cpu/thumb/instruction.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
-#include <algorithm>
-#include <cstdio>
 
 namespace matar {
 Cpu::Cpu(std::shared_ptr<Bus> bus) noexcept
-  : bus(bus)
-  , gpr({ 0 })
-  , cpsr(0)
-  , spsr(0)
-  , gpr_banked({ { 0 }, { 0 }, { 0 }, { 0 }, { 0 }, { 0 } })
-  , spsr_banked({ 0, 0, 0, 0, 0 })
-  , is_flushed(false) {
+  : bus(bus) {
     cpsr.set_mode(Mode::Supervisor);
     cpsr.set_irq_disabled(true);
     cpsr.set_fiq_disabled(true);
     cpsr.set_state(State::Arm);
-    uint32_t a = 4444;
-    dbg(this->bus->read_word(0x2000000));
-    this->bus->write_word(0x2000000, a);
-    dbg(this->bus->read_word(0x2000000));
     glogger.info("CPU successfully initialised");
 
     // PC always points to two instructions ahead
-    // PC - 2 is the instruction being executed
-    pc += 2 * arm::INSTRUCTION_SIZE;
+    flush_pipeline();
 }
 
 /* change modes */
@@ -141,41 +128,45 @@ Cpu::step() {
     if (cpsr.state() == State::Arm) {
         // word align
         rst_bit(pc, 1);
-        // Current instruction is two instructions behind PC
-        uint32_t cur_pc = pc - 2 * arm::INSTRUCTION_SIZE;
-        arm::Instruction instruction(bus->read_word(cur_pc));
+
+        uint32_t next_opcode = bus->read_word(pc);
+        arm::Instruction instruction(opcodes[0]);
+
+        opcodes[0] = opcodes[1];
+        opcodes[1] = next_opcode;
 
 #ifdef DISASSEMBLER
-        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
+        glogger.info("0x{:08X} : {}",
+                     pc - 2 * arm::INSTRUCTION_SIZE,
+                     instruction.disassemble());
 #endif
 
         instruction.exec(*this);
-    } else {
-        uint32_t cur_pc = pc - 2 * thumb::INSTRUCTION_SIZE;
-        thumb::Instruction instruction(bus->read_halfword(cur_pc));
-
-#ifdef DISASSEMBLER
-        glogger.info("0x{:08X} : {}", cur_pc, instruction.disassemble());
-#endif
-
-        instruction.exec(*this);
-    }
-
-    // advance PC
-    {
-        size_t size = cpsr.state() == State::Arm ? arm::INSTRUCTION_SIZE
-                                                 : thumb::INSTRUCTION_SIZE;
 
         if (is_flushed) {
-            // if flushed, do not increment the PC, instead set it to two
-            // instructions ahead to account for flushed "fetch" and "decode"
-            // instructions
-            pc += 2 * size;
+            flush_pipeline();
             is_flushed = false;
-        } else {
-            // if not flushed continue like normal
-            pc += size;
-        }
+        } else
+            advance_pc_arm();
+    } else {
+        uint32_t next_opcode = bus->read_halfword(pc);
+        thumb::Instruction instruction(opcodes[0]);
+
+        opcodes[0] = opcodes[1];
+        opcodes[1] = next_opcode;
+
+#ifdef DISASSEMBLER
+        glogger.info("0x{:08X} : {}",
+                     pc - 2 * thumb::INSTRUCTION_SIZE,
+                     instruction.disassemble());
+#endif
+
+        instruction.exec(*this);
+        if (is_flushed) {
+            flush_pipeline();
+            is_flushed = false;
+        } else
+            advance_pc_thumb();
     }
 }
 }

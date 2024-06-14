@@ -71,7 +71,7 @@ stringify(Condition cond) {
 
 class Psr {
   public:
-    // clear the reserved bits i.e, [8:27]
+    Psr() = default;
     Psr(uint32_t raw);
 
     uint32_t raw() const;

@@ -64,8 +64,28 @@ class Cpu {
         Psr abt;
         Psr irq;
         Psr und;
-    } spsr_banked; // banked saved program status registers
+    } spsr_banked = {}; // banked saved program status registers
 
-    bool is_flushed;
+    // raw instructions in the pipeline
+    std::array<uint32_t, 2> opcodes = {};
+
+    inline void advance_pc_arm() { pc += arm::INSTRUCTION_SIZE; };
+    inline void advance_pc_thumb() { pc += thumb::INSTRUCTION_SIZE; }
+
+    bool is_flushed = false;
+    inline void flush_pipeline() {
+        is_flushed = true;
+        if (cpsr.state() == State::Arm) {
+            opcodes[0] = bus->read_word(pc);
+            advance_pc_arm();
+            opcodes[1] = bus->read_word(pc);
+            advance_pc_arm();
+        } else {
+            opcodes[0] = bus->read_halfword(pc);
+            advance_pc_thumb();
+            opcodes[1] = bus->read_halfword(pc);
+            advance_pc_thumb();
+        }
+    };
 };
 }
