@@ -5,9 +5,14 @@ namespace matar {
 class GdbRsp {
   public:
     GdbRsp(std::shared_ptr<Cpu> cpu);
+    ~GdbRsp() = default;
     void start(const uint port);
+    void attach();
     void satisfy_client();
     void step();
+    void step(std::string msg);
+    void notify_breakpoint_reached();
+    inline bool is_attached() { return attached; }
 
   private:
     bool attached = false;
@@ -18,7 +23,7 @@ class GdbRsp {
     std::string make_packet(std::string raw);
     void acknowledge();
     void send_empty();
-    void notify_breakpoint_reached();
+    void send_ok();
 
     // Commands
     void cmd_attached();
@@ -34,9 +39,6 @@ class GdbRsp {
     void cmd_add_breakpoint(std::string msg);
     void cmd_detach();
     void cmd_continue();
-
-    static constexpr std::string ATTACHED_MSG = "$qAttached#8f";
-    static constexpr std::string OK_MSG       = "+$OK#9a";
 
     static constexpr uint MAX_MSG_LEN = 4096;
 };

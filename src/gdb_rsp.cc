@@ -46,8 +46,20 @@ GdbRsp::start(const uint port) {
     server.start(port);
     server.run();
 
+    attach();
+
+    // attaching is not enough, we continue, until the last GDB communication
+    // happens for ARMv4t i.e, fetching of the CPSR
     std::string msg;
 
+    while (msg != "$p19") {
+        msg = receive();
+        step(msg); // 25th (0x19) register is cpsr
+    }
+}
+
+void
+GdbRsp::attach() {
     while (!attached) {
         step();
     }
@@ -63,7 +75,11 @@ GdbRsp::satisfy_client() {
 void
 GdbRsp::step() {
     std::string msg = receive();
+    step(msg);
+}
 
+void
+GdbRsp::step(std::string msg) {
     switch (msg[0]) {
         case '+':
             break;
@@ -81,49 +97,39 @@ GdbRsp::step() {
                 acknowledge();
                 cmd_attached();
             } else {
+                acknowledge();
                 switch (msg[1]) {
                     case '?':
-                        acknowledge();
                         cmd_halted();
                         break;
                     case 'g':
-                        acknowledge();
                         cmd_read_registers();
                         break;
                     case 'G':
-                        acknowledge();
                         cmd_write_registers(msg);
                         break;
                     case 'p':
-                        acknowledge();
                         cmd_read_register(msg);
                         break;
                     case 'P':
-                        acknowledge();
                         cmd_write_register(msg);
                         break;
                     case 'm':
-                        acknowledge();
                         cmd_read_memory(msg);
                         break;
                     case 'M':
-                        acknowledge();
                         cmd_write_memory(msg);
                         break;
                     case 'z':
-                        acknowledge();
                         cmd_rm_breakpoint(msg);
                         break;
                     case 'Z':
-                        acknowledge();
                         cmd_add_breakpoint(msg);
                         break;
                     case 'c':
-                        acknowledge();
                         cmd_continue();
                         break;
                     case 'D':
-                        acknowledge();
                         cmd_detach();
                         break;
                     default:
@@ -177,8 +183,13 @@ GdbRsp::acknowledge() {
 
 void
 GdbRsp::send_empty() {
-    acknowledge();
     server.send(make_packet(""));
+}
+
+void
+GdbRsp::send_ok() {
+    acknowledge();
+    server.send(make_packet("OK"));
 }
 
 void
@@ -252,7 +263,7 @@ GdbRsp::cmd_write_registers(std::string msg) {
         }
 
         gdb_log("register values written");
-        server.send(OK_MSG);
+        send_ok();
     } catch (const std::exception& e) {
         gdb_log("{}", e.what());
         send_empty();
@@ -305,7 +316,7 @@ GdbRsp::cmd_write_register(std::string msg) {
             cpu->gpr[reg] = value;
 
         gdb_log("single register value written");
-        server.send(OK_MSG);
+        send_ok();
     } catch (const std::exception& e) {
         gdb_log("{}", e.what());
         send_empty();
@@ -380,7 +391,7 @@ GdbRsp::cmd_write_memory(std::string msg) {
 
         cpu->sequential = false;
         gdb_log("register values written");
-        server.send(OK_MSG);
+        send_ok();
     } catch (const std::exception& e) {
         gdb_log("{}", e.what());
         send_empty();
@@ -416,7 +427,7 @@ GdbRsp::cmd_rm_breakpoint(std::string msg) {
 
         cpu->breakpoints.erase(address);
         gdb_log("breakpoint {:#08x} removed", address);
-        server.send(OK_MSG);
+        send_ok();
     } catch (const std::exception& e) {
         gdb_log("{}", e.what());
         send_empty();
@@ -454,7 +465,7 @@ GdbRsp::cmd_add_breakpoint(std::string msg) {
 
         cpu->breakpoints.insert(address);
         gdb_log("breakpoint {:#08x} added", address);
-        server.send(OK_MSG);
+        send_ok();
     } catch (const std::exception& e) {
         gdb_log("{}", e.what());
         send_empty();
@@ -464,18 +475,14 @@ GdbRsp::cmd_add_breakpoint(std::string msg) {
 void
 GdbRsp::cmd_detach() {
     attached = false;
-    cpu->resume();
     gdb_log("detached");
-    server.send(OK_MSG);
+    send_ok();
 }
 
 void
 GdbRsp::cmd_continue() {
-    cpu->resume();
-    gdb_log("continued");
-    server.send(OK_MSG);
-    while (true) {
-        cpu->step();
-    }
+    // what to do?
+    gdb_log("cpu continued");
+    send_ok();
 }
 }
