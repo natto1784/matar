@@ -200,4 +200,13 @@ TEST_CASE("rom", TAG) {
     }
 }
 
+TEST_CASE_METHOD(BusFixture, "internal cycle", TAG) {
+    uint32_t cycles = bus->get_cycles();
+
+    bus->internal_cycle();
+    bus->internal_cycle();
+
+    CHECK(bus->get_cycles() == cycles + 2);
+}
+
 #undef TAG
