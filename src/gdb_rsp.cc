@@ -38,12 +38,13 @@ be_to_le(std::string str) {
     return current;
 }
 
-GdbRsp::GdbRsp(std::shared_ptr<Cpu> cpu)
-  : cpu(cpu) {}
+GdbRsp::GdbRsp(std::shared_ptr<Cpu> cpu, uint port)
+  : cpu(cpu) {
+    server.start(port);
+}
 
 void
-GdbRsp::start(const uint port) {
-    server.start(port);
+GdbRsp::start() {
     server.run();
 
     attach();

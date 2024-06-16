@@ -4,9 +4,9 @@
 namespace matar {
 class GdbRsp {
   public:
-    GdbRsp(std::shared_ptr<Cpu> cpu);
+    GdbRsp(std::shared_ptr<Cpu> cpu, uint port);
     ~GdbRsp() = default;
-    void start(const uint port);
+    void start();
     void attach();
     void satisfy_client();
     void step();
