@@ -7,7 +7,17 @@ project('matar', 'cpp',
                      'cpp_std=c++23',
                      'default_library=static'])
 
+lib_cpp_args = []
 compiler = meson.get_compiler('cpp')
+
+if get_option('disassembler')
+  lib_cpp_args += '-DDISASSEMBLER'
+endif
+
+if get_option('gdb_debug')
+  lib_cpp_args += '-DGDB_DEBUG'
+endif
+
 
 subdir('include')
 subdir('src')

@@ -9,14 +9,10 @@ tests_sources = files(
   'bus.cc'
 )
 
+tests_cpp_args = lib_cpp_args
+
 subdir('cpu')
 subdir('util')
-
-tests_cpp_args = []
-
-if get_option('disassembler')
-  tests_cpp_args += '-DDISASSEMBLER'
-endif
 
 catch2 = dependency('catch2', version: '>=3.4.0', static: true)
 catch2_tests = executable(

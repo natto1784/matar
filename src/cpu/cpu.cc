@@ -129,6 +129,14 @@ Cpu::step() {
         // word align
         rst_bit(pc, 1);
 
+#ifdef GDB_DEBUG
+        if (breakpoints.contains(pc - 2 * arm::INSTRUCTION_SIZE)) {
+            glogger.info_bold("CPU halted");
+            halted = true;
+            return;
+        }
+#endif
+
         arm::Instruction instruction(opcodes[0]);
 
         opcodes[0] = opcodes[1];
@@ -148,6 +156,15 @@ Cpu::step() {
         } else
             advance_pc_arm();
     } else {
+
+#ifdef GDB_DEBUG
+        if (breakpoints.contains(pc - 2 * thumb::INSTRUCTION_SIZE)) {
+            glogger.info_bold("CPU halted");
+            halted = true;
+            return;
+        }
+#endif
+
         thumb::Instruction instruction(opcodes[0]);
 
         opcodes[0] = opcodes[1];

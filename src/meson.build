@@ -2,15 +2,13 @@ lib_sources = files(
   'bus.cc',
 )
 
+if get_option('gdb_debug')
+  lib_sources += files('gdb_rsp.cc')
+endif
+
 subdir('util')
 subdir('cpu')
 subdir('io')
-
-lib_cpp_args = []
-
-if get_option('disassembler')
-  lib_cpp_args += '-DDISASSEMBLER'
-endif
 
 lib = library(
   meson.project_name(),

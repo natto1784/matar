@@ -136,6 +136,7 @@ Bus::write(uint32_t address) {
 #undef MATCHES
     }
 
+    glogger.error("Invalid memory region written");
     return {};
 }
 

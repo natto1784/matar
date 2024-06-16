@@ -31,7 +31,6 @@ class Bus {
 
     uint32_t read_word(uint32_t, bool = true);
     void write_word(uint32_t, uint32_t, bool = true);
-
     // not sure what else to do?
     inline void internal_cycle() { cycles++; }
 
