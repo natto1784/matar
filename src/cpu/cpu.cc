@@ -132,7 +132,7 @@ Cpu::step() {
         arm::Instruction instruction(opcodes[0]);
 
         opcodes[0] = opcodes[1];
-        opcodes[1] = bus->read_word(pc, sequential);
+        opcodes[1] = bus->read_word(pc, next_access);
 
 #ifdef DISASSEMBLER
         glogger.info("0x{:08X} : {}",
@@ -151,7 +151,7 @@ Cpu::step() {
         thumb::Instruction instruction(opcodes[0]);
 
         opcodes[0] = opcodes[1];
-        opcodes[1] = bus->read_halfword(pc, sequential);
+        opcodes[1] = bus->read_halfword(pc, next_access);
 
 #ifdef DISASSEMBLER
         glogger.info("0x{:08X} : {}",
@@ -168,4 +168,24 @@ Cpu::step() {
             advance_pc_thumb();
     }
 }
+
+void
+Cpu::flush_pipeline() {
+    // halfword align
+    rst_bit(pc, 0);
+    if (cpsr.state() == State::Arm) {
+        // word align
+        rst_bit(pc, 1);
+        opcodes[0] = bus->read_word(pc, CpuAccess::NonSequential);
+        advance_pc_arm();
+        opcodes[1] = bus->read_word(pc, CpuAccess::Sequential);
+        advance_pc_arm();
+    } else {
+        opcodes[0] = bus->read_halfword(pc, CpuAccess::NonSequential);
+        advance_pc_thumb();
+        opcodes[1] = bus->read_halfword(pc, CpuAccess::Sequential);
+        advance_pc_thumb();
+    }
+    next_access = CpuAccess::Sequential;
+};
 }

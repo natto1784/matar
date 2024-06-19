@@ -5,10 +5,20 @@
 #include <memory>
 #include <optional>
 #include <span>
-#include <unordered_map>
 #include <vector>
 
 namespace matar {
+enum CpuAccess {
+    Sequential,
+    NonSequential
+};
+
+enum CpuAccessWidth {
+    Word,
+    Halfword,
+    Byte
+};
+
 class Bus {
   private:
     struct Private {
@@ -23,20 +33,57 @@ class Bus {
     static std::shared_ptr<Bus> init(std::array<uint8_t, BIOS_SIZE>&&,
                                      std::vector<uint8_t>&&);
 
-    uint8_t read_byte(uint32_t, bool = true);
-    void write_byte(uint32_t, uint8_t, bool = true);
+    uint8_t read_byte(uint32_t address, CpuAccess access) {
+        add_cpu_cycles<CpuAccessWidth::Byte>(address, access);
+        return read_byte(address);
+    };
+    void write_byte(uint32_t address, uint8_t byte, CpuAccess access) {
+        add_cpu_cycles<CpuAccessWidth::Byte>(address, access);
+        write_byte(address, byte);
+    };
 
-    uint16_t read_halfword(uint32_t, bool = true);
-    void write_halfword(uint32_t, uint16_t, bool = true);
+    uint16_t read_halfword(uint32_t address, CpuAccess access) {
+        add_cpu_cycles<CpuAccessWidth::Halfword>(address, access);
+        return read_halfword(address);
+    }
+    void write_halfword(uint32_t address, uint16_t halfword, CpuAccess access) {
+        add_cpu_cycles<CpuAccessWidth::Halfword>(address, access);
+        write_halfword(address, halfword);
+    }
 
-    uint32_t read_word(uint32_t, bool = true);
-    void write_word(uint32_t, uint32_t, bool = true);
+    uint32_t read_word(uint32_t address, CpuAccess access) {
+        add_cpu_cycles<CpuAccessWidth::Word>(address, access);
+        return read_word(address);
+    }
+    void write_word(uint32_t address, uint32_t word, CpuAccess access) {
+        add_cpu_cycles<CpuAccessWidth::Word>(address, access);
+        write_word(address, word);
+    }
+
+    uint8_t read_byte(uint32_t address);
+    void write_byte(uint32_t address, uint8_t byte);
+
+    uint16_t read_halfword(uint32_t address);
+    void write_halfword(uint32_t address, uint16_t halfword);
+
+    uint32_t read_word(uint32_t address);
+    void write_word(uint32_t address, uint32_t word);
+
     // not sure what else to do?
-    inline void internal_cycle() { cycles++; }
-
-    inline uint32_t get_cycles() { return cycles; }
+    void internal_cycle() { cycles++; }
+    uint32_t get_cycles() { return cycles; }
 
   private:
+    template<CpuAccessWidth W>
+    void add_cpu_cycles(uint32_t address, CpuAccess access) {
+        auto cc = cycle_map[address >> 24 & 0xF];
+        if constexpr (W == CpuAccessWidth::Word) {
+            cycles += (access == CpuAccess::Sequential ? cc.s32 : cc.n32);
+        } else {
+            cycles += (access == CpuAccess::Sequential ? cc.s16 : cc.n16);
+        }
+    }
+
     template<unsigned int>
     std::optional<std::span<const uint8_t>> read(uint32_t) const;
 

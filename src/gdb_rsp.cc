@@ -91,54 +91,59 @@ GdbRsp::step(std::string msg) {
             cmd_halted();
             break;
         case '$': {
-            if (msg.starts_with("$qSupported")) {
-                acknowledge();
-                cmd_supported(msg);
-            } else if (msg.starts_with("$qAttached")) {
-                acknowledge();
-                cmd_attached();
-            } else {
-                acknowledge();
-                switch (msg[1]) {
-                    case '?':
-                        cmd_halted();
+            acknowledge();
+            switch (msg[1]) {
+                case '?':
+                    cmd_halted();
+                    break;
+                case 'g':
+                    cmd_read_registers();
+                    break;
+                case 'G':
+                    cmd_write_registers(msg);
+                    break;
+                case 'p':
+                    cmd_read_register(msg);
+                    break;
+                case 'P':
+                    cmd_write_register(msg);
+                    break;
+                case 'm':
+                    cmd_read_memory(msg);
+                    break;
+                case 'M':
+                    cmd_write_memory(msg);
+                    break;
+                case 'z':
+                    cmd_rm_breakpoint(msg);
+                    break;
+                case 'Z':
+                    cmd_add_breakpoint(msg);
+                    break;
+                case 'c':
+                    cmd_continue();
+                    break;
+                case 'D':
+                    cmd_detach();
+                    break;
+                case 'Q':
+                    if (msg == "$QStartNoAckMode")
+                        ack_mode = true;
+                    send_ok();
+                    break;
+                case 'q':
+                    if (msg.starts_with("$qSupported")) {
+                        cmd_supported(msg);
                         break;
-                    case 'g':
-                        cmd_read_registers();
+                    } else if (msg == "$qAttached") {
+                        cmd_attached();
                         break;
-                    case 'G':
-                        cmd_write_registers(msg);
-                        break;
-                    case 'p':
-                        cmd_read_register(msg);
-                        break;
-                    case 'P':
-                        cmd_write_register(msg);
-                        break;
-                    case 'm':
-                        cmd_read_memory(msg);
-                        break;
-                    case 'M':
-                        cmd_write_memory(msg);
-                        break;
-                    case 'z':
-                        cmd_rm_breakpoint(msg);
-                        break;
-                    case 'Z':
-                        cmd_add_breakpoint(msg);
-                        break;
-                    case 'c':
-                        cmd_continue();
-                        break;
-                    case 'D':
-                        cmd_detach();
-                        break;
-                    default:
-                        gdb_log("unknown command");
-                        send_empty();
-                }
+                    }
+                    [[fallthrough]];
+                default:
+                    gdb_log("unknown command");
+                    send_empty();
             }
-
             break;
         }
         default:
@@ -150,7 +155,7 @@ std::string
 GdbRsp::receive() {
     std::string msg = server.receive(1);
     char ch         = msg[0];
-    int checksum    = 0;
+    uint checksum   = 0;
 
     if (ch == '$') {
         while ((ch = server.receive(1)[0]) != '#') {
@@ -179,7 +184,8 @@ GdbRsp::make_packet(std::string raw) {
 
 void
 GdbRsp::acknowledge() {
-    server.send("+");
+    if (ack_mode)
+        server.send("+");
 }
 
 void
@@ -213,6 +219,9 @@ GdbRsp::cmd_supported(std::string msg) {
 
     if (msg.find("hwbreak+;") != std::string::npos)
         response += "hwbreak+;";
+
+    // no acknowledgement mode
+    response += "QStartNoAckMode+";
 
     gdb_log("sending response for qSupported");
     server.send(make_packet(response));
@@ -327,7 +336,6 @@ GdbRsp::cmd_write_register(std::string msg) {
 void
 GdbRsp::cmd_read_memory(std::string msg) {
     std::string response;
-    bool sequential = false;
 
     static std::regex rgx("\\$m([0-9A-Fa-f]+),([0-9A-Fa-f]+)");
     std::smatch sm;
@@ -351,20 +359,15 @@ GdbRsp::cmd_read_memory(std::string msg) {
     }
 
     for (uint i = 0; i < length; i++) {
-        response +=
-          std::format("{:02x}", cpu->bus->read_byte(address + i), sequential);
-        sequential = true;
+        response += std::format("{:02x}", cpu->bus->read_byte(address + i));
     }
 
-    cpu->sequential = false;
     gdb_log("sending memory values values");
     server.send(make_packet(response));
 }
 
 void
 GdbRsp::cmd_write_memory(std::string msg) {
-    bool sequential = false;
-
     static std::regex rgx("\\$M([0-9A-Fa-f]+),([0-9A-Fa-f]+):([0-9A-Fa-f]+)");
     std::smatch sm;
     regex_match(msg, sm, rgx);
@@ -382,15 +385,10 @@ GdbRsp::cmd_write_memory(std::string msg) {
         std::string values = sm[3].str();
 
         for (uint i = 0, j = 0; i < length && j < values.size(); i++, j += 2) {
-            cpu->bus->write_byte(address + i,
-                                 std::stoul(values.substr(j, 2), nullptr, 16) &
-                                   0xFF,
-                                 sequential);
-            glogger.warn("hi {:02x}", cpu->bus->read_byte(address + i));
-            sequential = true;
+            cpu->bus->write_byte(
+              address + i, std::stoul(values.substr(j, 2), nullptr, 16) & 0xFF);
         }
 
-        cpu->sequential = false;
         gdb_log("register values written");
         send_ok();
     } catch (const std::exception& e) {

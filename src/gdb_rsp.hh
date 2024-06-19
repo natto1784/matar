@@ -21,6 +21,8 @@ class GdbRsp {
     net::TcpServer server;
     std::string receive();
     std::string make_packet(std::string raw);
+
+    bool ack_mode = true;
     void acknowledge();
     void send_empty();
     void send_ok();

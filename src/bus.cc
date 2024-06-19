@@ -1,4 +1,5 @@
 #include "bus.hh"
+#include "io/io.hh"
 #include "util/crypto.hh"
 #include "util/log.hh"
 
@@ -141,10 +142,7 @@ Bus::write(uint32_t address) {
 }
 
 uint8_t
-Bus::read_byte(uint32_t address, bool sequential) {
-    auto cc = cycle_map[address >> 24 & 0xF];
-    cycles += sequential ? cc.s16 : cc.n16;
-
+Bus::read_byte(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_byte(address);
 
@@ -153,10 +151,7 @@ Bus::read_byte(uint32_t address, bool sequential) {
 }
 
 void
-Bus::write_byte(uint32_t address, uint8_t byte, bool sequential) {
-    auto cc = cycle_map[address >> 24 & 0xF];
-    cycles += sequential ? cc.s16 : cc.n16;
-
+Bus::write_byte(uint32_t address, uint8_t byte) {
     if (address >= IO_START && address <= IO_END) {
         io->write_byte(address, byte);
         return;
@@ -169,12 +164,9 @@ Bus::write_byte(uint32_t address, uint8_t byte, bool sequential) {
 }
 
 uint16_t
-Bus::read_halfword(uint32_t address, bool sequential) {
+Bus::read_halfword(uint32_t address) {
     if (address & 0b01)
         glogger.warn("Reading a non aligned halfword address");
-
-    auto cc = cycle_map[address >> 24 & 0xF];
-    cycles += sequential ? cc.s16 : cc.n16;
 
     if (address >= IO_START && address <= IO_END)
         return io->read_halfword(address);
@@ -185,12 +177,9 @@ Bus::read_halfword(uint32_t address, bool sequential) {
 }
 
 void
-Bus::write_halfword(uint32_t address, uint16_t halfword, bool sequential) {
+Bus::write_halfword(uint32_t address, uint16_t halfword) {
     if (address & 0b01)
         glogger.warn("Writing to a non aligned halfword address");
-
-    auto cc = cycle_map[address >> 24 & 0xF];
-    cycles += sequential ? cc.s16 : cc.n16;
 
     if (address >= IO_START && address <= IO_END) {
         io->write_halfword(address, halfword);
@@ -207,12 +196,9 @@ Bus::write_halfword(uint32_t address, uint16_t halfword, bool sequential) {
 }
 
 uint32_t
-Bus::read_word(uint32_t address, bool sequential) {
+Bus::read_word(uint32_t address) {
     if (address & 0b11)
         glogger.warn("Reading a non aligned word address");
-
-    auto cc = cycle_map[address >> 24 & 0xF];
-    cycles += sequential ? cc.s32 : cc.n32;
 
     if (address >= IO_START && address <= IO_END)
         return io->read_word(address);
@@ -225,12 +211,9 @@ Bus::read_word(uint32_t address, bool sequential) {
 }
 
 void
-Bus::write_word(uint32_t address, uint32_t word, bool sequential) {
+Bus::write_word(uint32_t address, uint32_t word) {
     if (address & 0b11)
         glogger.warn("Writing to a non aligned word address");
-
-    auto cc = cycle_map[address >> 24 & 0xF];
-    cycles += sequential ? cc.s32 : cc.n32;
 
     if (address >= IO_START && address <= IO_END) {
         io->write_word(address, word);

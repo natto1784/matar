@@ -203,17 +203,21 @@ Instruction::exec(Cpu& cpu) {
             pc_error(data.rd);
 
             if (data.byte) {
-                cpu.gpr[data.rd] = cpu.bus->read_byte(cpu.gpr[data.rn], false);
-                cpu.bus->write_byte(
-                  cpu.gpr[data.rn], cpu.gpr[data.rm] & 0xFF, true);
+                cpu.gpr[data.rd] = cpu.bus->read_byte(cpu.gpr[data.rn],
+                                                      CpuAccess::NonSequential);
+                cpu.bus->write_byte(cpu.gpr[data.rn],
+                                    cpu.gpr[data.rm] & 0xFF,
+                                    CpuAccess::Sequential);
             } else {
-                cpu.gpr[data.rd] = cpu.bus->read_word(cpu.gpr[data.rn], false);
-                cpu.bus->write_word(cpu.gpr[data.rn], cpu.gpr[data.rm], true);
+                cpu.gpr[data.rd] = cpu.bus->read_word(cpu.gpr[data.rn],
+                                                      CpuAccess::NonSequential);
+                cpu.bus->write_word(
+                  cpu.gpr[data.rn], cpu.gpr[data.rm], CpuAccess::Sequential);
             }
 
             cpu.internal_cycle();
             // last write address is unrelated to next
-            cpu.sequential = false;
+            cpu.next_access = CpuAccess::NonSequential;
         },
         [&cpu, pc_warn, pc_error](SingleDataTransfer& data) {
             /*
@@ -273,10 +277,12 @@ Instruction::exec(Cpu& cpu) {
             if (data.load) {
                 // byte
                 if (data.byte)
-                    cpu.gpr[data.rd] = cpu.bus->read_byte(address, false);
+                    cpu.gpr[data.rd] =
+                      cpu.bus->read_byte(address, CpuAccess::NonSequential);
                 // word
                 else
-                    cpu.gpr[data.rd] = cpu.bus->read_word(address, false);
+                    cpu.gpr[data.rd] =
+                      cpu.bus->read_word(address, CpuAccess::NonSequential);
 
                 // N + S
                 if (data.rd == cpu.PC_INDEX)
@@ -292,11 +298,13 @@ Instruction::exec(Cpu& cpu) {
 
                 // byte
                 if (data.byte)
-                    cpu.bus->write_byte(
-                      address, cpu.gpr[data.rd] & 0xFF, false);
+                    cpu.bus->write_byte(address,
+                                        cpu.gpr[data.rd] & 0xFF,
+                                        CpuAccess::NonSequential);
                 // word
                 else
-                    cpu.bus->write_word(address, cpu.gpr[data.rd], false);
+                    cpu.bus->write_word(
+                      address, cpu.gpr[data.rd], CpuAccess::NonSequential);
             }
 
             if (!data.pre)
@@ -306,7 +314,7 @@ Instruction::exec(Cpu& cpu) {
                 cpu.gpr[data.rn] = address;
 
             // last read/write is unrelated, this will be overwriten if flushed
-            cpu.sequential = false;
+            cpu.next_access = CpuAccess::NonSequential;
         },
         [&cpu, pc_warn, pc_error](HalfwordTransfer& data) {
             /*
@@ -324,7 +332,6 @@ Instruction::exec(Cpu& cpu) {
               N -> write at target
               Total = 2N
             */
-
             uint32_t address = cpu.gpr[data.rn];
             uint32_t offset  = 0;
 
@@ -359,8 +366,8 @@ Instruction::exec(Cpu& cpu) {
                 if (data.sign) {
                     // halfword
                     if (data.half) {
-                        cpu.gpr[data.rd] =
-                          cpu.bus->read_halfword(address, false);
+                        cpu.gpr[data.rd] = cpu.bus->read_halfword(
+                          address, CpuAccess::NonSequential);
 
                         // sign extend the halfword
                         cpu.gpr[data.rd] =
@@ -368,7 +375,8 @@ Instruction::exec(Cpu& cpu) {
 
                         // byte
                     } else {
-                        cpu.gpr[data.rd] = cpu.bus->read_byte(address, false);
+                        cpu.gpr[data.rd] =
+                          cpu.bus->read_byte(address, CpuAccess::NonSequential);
 
                         // sign extend the byte
                         cpu.gpr[data.rd] =
@@ -376,7 +384,8 @@ Instruction::exec(Cpu& cpu) {
                     }
                     // unsigned halfword
                 } else if (data.half) {
-                    cpu.gpr[data.rd] = cpu.bus->read_halfword(address, false);
+                    cpu.gpr[data.rd] =
+                      cpu.bus->read_halfword(address, CpuAccess::NonSequential);
                 }
 
                 // I
@@ -393,7 +402,8 @@ Instruction::exec(Cpu& cpu) {
 
                 // halfword
                 if (data.half)
-                    cpu.bus->write_halfword(address, cpu.gpr[data.rd], false);
+                    cpu.bus->write_halfword(
+                      address, cpu.gpr[data.rd], CpuAccess::NonSequential);
             }
 
             if (!data.pre)
@@ -403,7 +413,7 @@ Instruction::exec(Cpu& cpu) {
                 cpu.gpr[data.rn] = address;
 
             // last read/write is unrelated, this will be overwriten if flushed
-            cpu.sequential = false;
+            cpu.next_access = CpuAccess::NonSequential;
         },
         [&cpu, pc_error](BlockDataTransfer& data) {
             /*
@@ -429,7 +439,7 @@ Instruction::exec(Cpu& cpu) {
             uint32_t address = cpu.gpr[data.rn];
             Mode mode        = cpu.cpsr.mode();
             int8_t i         = 0;
-            bool sequential  = false;
+            CpuAccess access = CpuAccess::NonSequential;
 
             pc_error(data.rn);
 
@@ -466,19 +476,17 @@ Instruction::exec(Cpu& cpu) {
                 if (data.up) {
                     for (i = 0; i < cpu.GPR_COUNT; i++) {
                         if (get_bit(data.regs, i)) {
-                            cpu.gpr[i] =
-                              cpu.bus->read_word(address, sequential);
+                            cpu.gpr[i] = cpu.bus->read_word(address, access);
                             address += alignment;
-                            sequential = true;
+                            access = CpuAccess::Sequential;
                         }
                     }
                 } else {
                     for (i = cpu.GPR_COUNT - 1; i >= 0; i--) {
                         if (get_bit(data.regs, i)) {
-                            cpu.gpr[i] =
-                              cpu.bus->read_word(address, sequential);
+                            cpu.gpr[i] = cpu.bus->read_word(address, access);
                             address -= alignment;
-                            sequential = true;
+                            access = CpuAccess::Sequential;
                         }
                     }
                 }
@@ -489,19 +497,17 @@ Instruction::exec(Cpu& cpu) {
                 if (data.up) {
                     for (i = 0; i < cpu.GPR_COUNT; i++) {
                         if (get_bit(data.regs, i)) {
-                            cpu.bus->write_word(
-                              address, cpu.gpr[i], sequential);
+                            cpu.bus->write_word(address, cpu.gpr[i], access);
                             address += alignment;
-                            sequential = true;
+                            access = CpuAccess::Sequential;
                         }
                     }
                 } else {
                     for (i = cpu.GPR_COUNT - 1; i >= 0; i--) {
                         if (get_bit(data.regs, i)) {
-                            cpu.bus->write_word(
-                              address, cpu.gpr[i], sequential);
+                            cpu.bus->write_word(address, cpu.gpr[i], access);
                             address -= alignment;
-                            sequential = true;
+                            access = CpuAccess::Sequential;
                         }
                     }
                 }
@@ -518,7 +524,7 @@ Instruction::exec(Cpu& cpu) {
             cpu.chg_mode(mode);
 
             // last read/write is unrelated, this will be overwriten if flushed
-            cpu.sequential = false;
+            cpu.next_access = CpuAccess::NonSequential;
         },
         [&cpu, pc_error](PsrTransfer& data) {
             /*
