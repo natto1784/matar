@@ -855,18 +855,19 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
         setr(6, 131313333);
         setr(7, 131);
 
-        // set R2 (base) to top of stack
-        setr(2, address + alignment * 5);
+        // base
+        setr(2, address);
 
         exec(data);
 
         CHECK(bus->read_word(address) == 237164);
-        CHECK(bus->read_word(address + alignment) == address + alignment * 5);
+        CHECK(bus->read_word(address + alignment) == address);
         CHECK(bus->read_word(address + alignment * 2) == 905895898);
         CHECK(bus->read_word(address + alignment * 3) == 131313333);
         CHECK(bus->read_word(address + alignment * 4) == 131);
+
         // write back
-        CHECK(getr(2) == address);
+        CHECK(getr(2) == address + alignment * 5);
     }
 
     SECTION("load") {

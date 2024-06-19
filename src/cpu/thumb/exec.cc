@@ -499,10 +499,10 @@ Instruction::exec(Cpu& cpu) {
                     }
                 }
             } else {
-                for (int8_t i = 7; i >= 0; i--) {
+                for (uint8_t i = 0; i < 8; i++) {
                     if (get_bit(data.regs, i)) {
-                        rb -= alignment;
                         cpu.bus->write_word(rb, cpu.gpr[i], sequential);
+                        rb += alignment;
                         sequential = true;
                     }
                 }
