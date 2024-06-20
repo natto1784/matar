@@ -140,13 +140,7 @@ Cpu::step() {
                      instruction.disassemble());
 #endif
 
-        instruction.exec(*this);
-
-        if (is_flushed) {
-            flush_pipeline();
-            is_flushed = false;
-        } else
-            advance_pc_arm();
+        exec(instruction);
     } else {
         thumb::Instruction instruction(opcodes[0]);
 
@@ -159,33 +153,22 @@ Cpu::step() {
                      instruction.disassemble());
 #endif
 
-        instruction.exec(*this);
-
-        if (is_flushed) {
-            flush_pipeline();
-            is_flushed = false;
-        } else
-            advance_pc_thumb();
+        exec(instruction);
     }
 }
 
 void
-Cpu::flush_pipeline() {
-    // halfword align
+Cpu::advance_pc_arm() {
     rst_bit(pc, 0);
-    if (cpsr.state() == State::Arm) {
-        // word align
-        rst_bit(pc, 1);
-        opcodes[0] = bus->read_word(pc, CpuAccess::NonSequential);
-        advance_pc_arm();
-        opcodes[1] = bus->read_word(pc, CpuAccess::Sequential);
-        advance_pc_arm();
-    } else {
-        opcodes[0] = bus->read_halfword(pc, CpuAccess::NonSequential);
-        advance_pc_thumb();
-        opcodes[1] = bus->read_halfword(pc, CpuAccess::Sequential);
-        advance_pc_thumb();
-    }
-    next_access = CpuAccess::Sequential;
+    rst_bit(pc, 1);
+    pc += arm::INSTRUCTION_SIZE;
 };
+void
+Cpu::advance_pc_thumb() {
+    rst_bit(pc, 0);
+    pc += thumb::INSTRUCTION_SIZE;
+}
+
+void
+Cpu::flush_pipeline() {};
 }

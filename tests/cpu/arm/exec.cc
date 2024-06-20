@@ -15,9 +15,16 @@ TEST_CASE_METHOD(CpuFixture, "Branch and Exchange", TAG) {
 
     setr(3, 342800);
 
+    uint32_t cycles = bus->get_cycles();
     exec(data);
+    CHECK(bus->get_cycles() == cycles + 3);
 
-    CHECK(getr(15) == 342800);
+    INFO(getr(15));
+    INFO(getr(15));
+    INFO(getr(15));
+    INFO(getr(15));
+    // +8 cuz pipeline flush
+    CHECK(getr(15) == 342808);
 }
 
 TEST_CASE_METHOD(CpuFixture, "Branch", TAG) {
@@ -27,10 +34,13 @@ TEST_CASE_METHOD(CpuFixture, "Branch", TAG) {
     // set PC to 48
     setr(15, 48);
 
+    uint32_t cycles = bus->get_cycles();
     exec(data);
+    CHECK(bus->get_cycles() == cycles + 3);
 
     // 48 + offset
-    CHECK(getr(15) == 3489796);
+    // +8 cuz pipeline flush
+    CHECK(getr(15) == 3489804);
     CHECK(getr(14) == 0);
 
     // with link
@@ -40,7 +50,8 @@ TEST_CASE_METHOD(CpuFixture, "Branch", TAG) {
     exec(data);
 
     // 48 + offset
-    CHECK(getr(15) == 3489796);
+    // +8 cuz pipeline flush
+    CHECK(getr(15) == 3489804);
     // pc was set to 48
     CHECK(getr(14) == 48 - INSTRUCTION_SIZE);
 }
@@ -53,11 +64,13 @@ TEST_CASE_METHOD(CpuFixture, "Multiply", TAG) {
 
     setr(10, 234912349);
     setr(11, 124897);
-    setr(3, 99999);
+    setr(3, 99999); // m = 3 since [32:24] bits are 0
 
     {
         uint32_t result = 234912349ull * 124897ull & 0xFFFFFFFF;
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 4); // S + mI
 
         CHECK(getr(5) == result);
     }
@@ -66,7 +79,9 @@ TEST_CASE_METHOD(CpuFixture, "Multiply", TAG) {
     {
         uint32_t result = (234912349ull * 124897ull + 99999ull) & 0xFFFFFFFF;
         multiply->acc   = true;
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 5); // S + mI + I
 
         CHECK(getr(5) == result);
     }
@@ -105,12 +120,14 @@ TEST_CASE_METHOD(CpuFixture, "Multiply Long", TAG) {
     MultiplyLong* multiply_long = std::get_if<MultiplyLong>(&data);
 
     setr(10, 234912349);
-    setr(11, 124897);
+    setr(11, 124897); // m = 3
 
     // unsigned
     {
         uint64_t result = 234912349ull * 124897ull;
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 5); // S + (m+1)I
 
         CHECK(getr(3) == bit_range(result, 0, 31));
         CHECK(getr(5) == bit_range(result, 32, 63));
@@ -121,7 +138,9 @@ TEST_CASE_METHOD(CpuFixture, "Multiply Long", TAG) {
         int64_t result = 234912349ll * -124897ll;
         setr(11, getr(11) * -1);
         multiply_long->uns = false;
+        uint32_t cycles    = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 5); // S + (m+1)I
 
         CHECK(getr(3) == static_cast<uint32_t>(bit_range(result, 0, 31)));
         CHECK(getr(5) == static_cast<uint32_t>(bit_range(result, 32, 63)));
@@ -136,7 +155,9 @@ TEST_CASE_METHOD(CpuFixture, "Multiply Long", TAG) {
           234912349ll * -124897ll + (99999ll | -444333391ll << 32);
 
         multiply_long->acc = true;
+        uint32_t cycles    = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 6); // S + (m+2)I
 
         CHECK(getr(3) == static_cast<uint32_t>(bit_range(result, 0, 31)));
         CHECK(getr(5) == static_cast<uint32_t>(bit_range(result, 32, 63)));
@@ -185,7 +206,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Swap", TAG) {
     bus->write_word(getr(9), 3241011111);
 
     SECTION("word") {
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 4); // S + 2N + I
 
         CHECK(getr(4) == 3241011111);
         CHECK(bus->read_word(getr(9)) == static_cast<uint32_t>(-259039045));
@@ -227,7 +250,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
     {
         // 0x31E + 0x3000004
         bus->write_word(0x30031E4, 95995);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I
 
         CHECK(getr(5) == 95995);
         setr(5, 0);
@@ -305,7 +330,9 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
     {
         data_transfer->load = false;
 
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N for store
 
         CHECK(bus->read_word(0x30042CB) == 61119);
         // 0x30042CB - 0xDA1
@@ -315,13 +342,15 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
     // r15 as rn
     {
         data_transfer->rn = 15;
-        setr(15, 0x300352A);
+        setr(15, 0x300352C); // word aligned
 
         exec(data);
 
-        CHECK(bus->read_word(0x300352A) == 61119);
-        // 0x300352A - 0xDA1
-        CHECK(getr(15) == 0x3002789);
+        CHECK(bus->read_word(0x300352C) == 61119);
+        // 0x300352C - 0xDA1
+        // +4 cuz PC advanced
+        // and then word aligned
+        CHECK(getr(15) == 0x300278C);
 
         // cleanup
         data_transfer->rn = 7;
@@ -334,13 +363,12 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus->read_word(0x300352A + INSTRUCTION_SIZE) == 444444);
+        CHECK(bus->read_word(0x300352A) == 444444 + 4);
         // 0x300352A - 0xDA1
-        CHECK(getr(7) == 0x3002789 + INSTRUCTION_SIZE);
+        CHECK(getr(7) == 0x3002789);
 
         // cleanup
         data_transfer->rd = 5;
-        setr(7, getr(7) - INSTRUCTION_SIZE);
     }
 
     // byte
@@ -354,6 +382,29 @@ TEST_CASE_METHOD(CpuFixture, "Single Data Transfer", TAG) {
         CHECK(bus->read_word(0x3002789) == (458267584 & 0xFF));
         // 0x3002789 - 0xDA1
         CHECK(getr(7) == 0x30019E8);
+    }
+
+    // r15 as rd with load
+    {
+        data_transfer->rd   = 15;
+        data_transfer->load = true;
+        setr(15, 0);
+        bus->write_byte(0x30019E8, 0xE2);
+
+        uint32_t cycles = bus->get_cycles();
+        exec(data);
+        CHECK(bus->get_cycles() ==
+              cycles + 5); // 2S + 2N + I for load with rd=15
+
+        // +8 cuz pipeline flushed then word aligned
+        // so +6
+        CHECK(getr(15) == 0xE8);
+
+        // 0x30019E8 - 0xDA1
+        CHECK(getr(7) == 0x3000C47);
+
+        // cleanup
+        data_transfer->rd = 5;
     }
 }
 
@@ -378,7 +429,10 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
     {
         //  0x300611E  + 0x384
         bus->write_word(0x30064A2, 3948123487);
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I
 
         CHECK(getr(11) == (3948123487 & 0xFFFF));
     }
@@ -436,7 +490,9 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
     {
         hw_transfer->load = false;
 
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N
 
         CHECK(bus->read_halfword(0x3005FD0) == (6111909 & 0xFFFF));
         // 0x3005FD0 - 0xA7
@@ -446,14 +502,15 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
     // r15 as rn
     {
         hw_transfer->rn = 15;
-        setr(15, 0x3005F29);
+        setr(15, 0x3005F28); // word aligned
 
         exec(data);
 
-        CHECK(bus->read_halfword(0x3005F29 - 2 * INSTRUCTION_SIZE) ==
-              (6111909 & 0xFFFF));
-        // 0x3005F29 - 0xA7
-        CHECK(getr(15) == 0x3005E82 - 2 * INSTRUCTION_SIZE);
+        CHECK(bus->read_halfword(0x3005F28) == (6111909 & 0xFFFF));
+        // 0x3005F28 - 0xA7
+        // +4 cuz PC advanced
+        // and then word aligned
+        CHECK(getr(15) == 0x3005E84);
 
         // cleanup
         hw_transfer->rn = 10;
@@ -466,13 +523,12 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
 
         exec(data);
 
-        CHECK(bus->read_halfword(0x3005F29 + INSTRUCTION_SIZE) == 224);
+        CHECK(bus->read_halfword(0x3005F29) == 224 + 4);
         // 0x3005F29 - 0xA7
-        CHECK(getr(10) == 0x3005E82 + INSTRUCTION_SIZE);
+        CHECK(getr(10) == 0x3005E82);
 
         // cleanup
         hw_transfer->rd = 11;
-        setr(10, getr(10) - INSTRUCTION_SIZE);
     }
 
     // signed halfword
@@ -498,6 +554,28 @@ TEST_CASE_METHOD(CpuFixture, "Halfword Transfer", TAG) {
         CHECK(getr(11) == static_cast<uint32_t>(-56));
         // 0x3005DDB - 0xA7
         CHECK(getr(10) == 0x3005D34);
+    }
+
+    // r15 as rd with load
+    {
+        hw_transfer->rd   = 15;
+        hw_transfer->load = true;
+        setr(15, 0);
+        bus->write_byte(0x3005D34, 56);
+
+        uint32_t cycles = bus->get_cycles();
+        exec(data);
+        CHECK(bus->get_cycles() ==
+              cycles + 5); // 2S + 2N + I for load with rd=15
+
+        // +8 cuz pipeline flushed then word aligned
+        CHECK(getr(15) == static_cast<uint32_t>(56 + 8));
+
+        // 0x3005D34 - 0xA7
+        CHECK(getr(10) == 0x3005C8D);
+
+        // cleanup
+        hw_transfer->rd = 11;
     }
 }
 
@@ -542,7 +620,10 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
             CHECK(getr(12) == 0);
             CHECK(getr(13) == 989231);
             CHECK(getr(14) == 0);
-            CHECK(getr(15) == 6);
+
+            // setting r15 as 6, flushes the pipeline causing it to go 6 + 8
+            // i.e, 14. word aligning this, gives us 12
+            CHECK(getr(15) == 12);
 
             for (uint8_t i = 0; i < 16; i++) {
                 setr(i, 0);
@@ -550,7 +631,9 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         };
 
         setr(10, address);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 11); // (n+1)S + 2N + I
         checker(address);
 
         // with write
@@ -610,23 +693,30 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         setr(8, 131313333);
         setr(11, 131);
         setr(13, 989231);
-        setr(15, 6);
+        setr(15, 4); // word align
 
-        auto checker = [this]() {
+        // we will count the number of steps to count PC advances
+        uint8_t steps = 0;
+
+        auto checker = [this, &steps]() {
             CHECK(bus->read_word(address + alignment) == 237164);
             CHECK(bus->read_word(address + alignment * 2) == 679785111);
             CHECK(bus->read_word(address + alignment * 3) == 905895898);
             CHECK(bus->read_word(address + alignment * 4) == 131313333);
             CHECK(bus->read_word(address + alignment * 5) == 131);
             CHECK(bus->read_word(address + alignment * 6) == 989231);
-            CHECK(bus->read_word(address + alignment * 7) == 6);
+            CHECK(bus->read_word(address + alignment * 7) ==
+                  4 + (4 * (steps - 1)));
 
             for (uint8_t i = 1; i < 8; i++)
                 bus->write_word(address + alignment * i, 0);
         };
 
         setr(10, address); // base
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 8); // 2N + (n-1)S
+        steps++;
         checker();
 
         // decrement
@@ -635,6 +725,7 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         // adjust rn
         setr(10, address + alignment * 8);
         exec(data);
+        steps++;
         checker();
 
         // post increment
@@ -643,6 +734,7 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         // adjust rn
         setr(10, address + alignment);
         exec(data);
+        steps++;
         checker();
 
         // post decrement
@@ -650,12 +742,14 @@ TEST_CASE_METHOD(CpuFixture, "Block Data Transfer", TAG) {
         // adjust rn
         setr(10, address + alignment * 7);
         exec(data);
+        steps++;
         checker();
 
         // with s bit
         cpu.chg_mode(Mode::Fiq);
         block_transfer->s = true;
         exec(data);
+        steps++;
         // User's R13 is different (unset at this point)
         CHECK(bus->read_word(address + alignment * 6) == 0);
     }
@@ -674,7 +768,9 @@ TEST_CASE_METHOD(CpuFixture, "PSR Transfer", TAG) {
         setr(12, 12389398);
 
         CHECK(psr().raw() != getr(12));
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
         CHECK(psr().raw() == getr(12));
 
         psr_transfer->spsr = true;
@@ -691,7 +787,9 @@ TEST_CASE_METHOD(CpuFixture, "PSR Transfer", TAG) {
         setr(12, 16556u << 8);
 
         CHECK(psr().raw() != getr(12));
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
         CHECK(psr().raw() == getr(12));
 
         psr_transfer->spsr = true;
@@ -708,7 +806,9 @@ TEST_CASE_METHOD(CpuFixture, "PSR Transfer", TAG) {
         setr(12, 1490352945);
         // go to the reserved bits
 
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
         CHECK(psr().n() == get_bit(1490352945, 31));
         CHECK(psr().z() == get_bit(1490352945, 30));
         CHECK(psr().c() == get_bit(1490352945, 29));
@@ -719,6 +819,7 @@ TEST_CASE_METHOD(CpuFixture, "PSR Transfer", TAG) {
         psr_transfer->imm     = true;
         psr_transfer->spsr    = true;
         exec(data);
+        CHECK(psr().n() == get_bit(1490352945, 31));
         CHECK(psr(true).n() == get_bit(9933394, 31));
         CHECK(psr(true).z() == get_bit(9933394, 30));
         CHECK(psr(true).c() == get_bit(9933394, 29));
@@ -750,7 +851,9 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
     {
         // rm
         setr(3, 1596);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
         // -28717 & 12768
         CHECK(getr(5) == 448);
     }
@@ -767,7 +870,11 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
         setr(3, 1596);
         // rs
         setr(12, 2);
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 1S + 1I
+
         // -28717 & 6384
         CHECK(getr(5) == 2256);
     }
@@ -1063,10 +1170,12 @@ TEST_CASE_METHOD(CpuFixture, "Data Processing", TAG) {
         processing->rd     = 15;
         setr(15, 0);
         CHECK(psr(true).raw() != psr().raw());
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // 2S + N
 
-        // ~54924809
-        CHECK(getr(15) == static_cast<uint32_t>(-54924810));
+        // ~54924809 + 8 (for flush) and then word adjust
+        CHECK(getr(15) == static_cast<uint32_t>(-54924804));
 
         // flags are not set
         flags(false, false, false, false);

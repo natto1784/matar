@@ -147,7 +147,7 @@ Instruction::disassemble() {
         [](LongBranchWithLink& data) {
             // duh this manual be empty for H = 0
             return std::format(
-              "BL{} #{:d}", (data.high ? "H" : ""), data.offset);
+              "BL{} #{:d}", (data.low ? "" : "H"), data.offset);
         },
         [](auto) { return std::string("unknown instruction"); } },
       data);

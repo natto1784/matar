@@ -19,10 +19,13 @@ class GdbRsp;
 
 class Cpu {
   public:
-    Cpu(std::shared_ptr<Bus>) noexcept;
+    Cpu(std::shared_ptr<Bus> bus) noexcept;
 
     void step();
     void chg_mode(const Mode to);
+
+    void exec(arm::Instruction& instruction);
+    void exec(thumb::Instruction& instruction);
 
 #ifdef GDB_DEBUG
     bool breakpoint_reached() {
@@ -92,10 +95,9 @@ class Cpu {
     // raw instructions in the pipeline
     std::array<uint32_t, 2> opcodes = {};
 
-    void advance_pc_arm() { pc += arm::INSTRUCTION_SIZE; };
-    void advance_pc_thumb() { pc += thumb::INSTRUCTION_SIZE; }
+    void advance_pc_arm();
+    void advance_pc_thumb();
 
-    bool is_flushed = false;
     void flush_pipeline();
 
 #ifdef GDB_DEBUG

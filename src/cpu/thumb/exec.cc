@@ -1,21 +1,27 @@
+#include "bus.hh"
 #include "cpu/alu.hh"
 #include "cpu/cpu.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
 
-namespace matar::thumb {
+namespace matar {
 void
-Instruction::exec(Cpu& cpu) {
-    auto set_cc = [&cpu](bool c, bool v, bool n, bool z) {
-        cpu.cpsr.set_c(c);
-        cpu.cpsr.set_v(v);
-        cpu.cpsr.set_n(n);
-        cpu.cpsr.set_z(z);
+Cpu::exec(thumb::Instruction& instruction) {
+    bool is_flushed = false;
+    dbg(pc);
+
+    auto set_cc = [this](bool c, bool v, bool n, bool z) {
+        cpsr.set_c(c);
+        cpsr.set_v(v);
+        cpsr.set_n(n);
+        cpsr.set_z(z);
     };
+
+    using namespace thumb;
 
     std::visit(
       overloaded{
-        [&cpu, set_cc](MoveShiftedRegister& data) {
+        [this, set_cc](MoveShiftedRegister& data) {
             /*
               S -> prefetched instruction in step()
 
@@ -24,16 +30,16 @@ Instruction::exec(Cpu& cpu) {
             if (data.opcode == ShiftType::ROR)
                 glogger.error("Invalid opcode in {}", typeid(data).name());
 
-            bool carry = cpu.cpsr.c();
+            bool carry = cpsr.c();
 
             uint32_t shifted =
-              eval_shift(data.opcode, cpu.gpr[data.rs], data.offset, carry);
+              eval_shift(data.opcode, gpr[data.rs], data.offset, carry);
 
-            cpu.gpr[data.rd] = shifted;
+            gpr[data.rd] = shifted;
 
-            set_cc(carry, cpu.cpsr.v(), get_bit(shifted, 31), shifted == 0);
+            set_cc(carry, cpsr.v(), get_bit(shifted, 31), shifted == 0);
         },
-        [&cpu, set_cc](AddSubtract& data) {
+        [this, set_cc](AddSubtract& data) {
             /*
               S -> prefetched instruction in step()
 
@@ -41,32 +47,32 @@ Instruction::exec(Cpu& cpu) {
             */
             uint32_t offset =
               data.imm ? static_cast<uint32_t>(static_cast<int8_t>(data.offset))
-                       : cpu.gpr[data.offset];
+                       : gpr[data.offset];
             uint32_t result = 0;
-            bool carry      = cpu.cpsr.c();
-            bool overflow   = cpu.cpsr.v();
+            bool carry      = cpsr.c();
+            bool overflow   = cpsr.v();
 
             switch (data.opcode) {
                 case AddSubtract::OpCode::ADD:
-                    result = add(cpu.gpr[data.rs], offset, carry, overflow);
+                    result = add(gpr[data.rs], offset, carry, overflow);
                     break;
                 case AddSubtract::OpCode::SUB:
-                    result = sub(cpu.gpr[data.rs], offset, carry, overflow);
+                    result = sub(gpr[data.rs], offset, carry, overflow);
                     break;
             }
 
-            cpu.gpr[data.rd] = result;
+            gpr[data.rd] = result;
             set_cc(carry, overflow, get_bit(result, 31), result == 0);
         },
-        [&cpu, set_cc](MovCmpAddSubImmediate& data) {
+        [this, set_cc](MovCmpAddSubImmediate& data) {
             /*
               S -> prefetched instruction in step()
 
               Total = S cycle
             */
             uint32_t result = 0;
-            bool carry      = cpu.cpsr.c();
-            bool overflow   = cpu.cpsr.v();
+            bool carry      = cpsr.c();
+            bool overflow   = cpsr.v();
 
             switch (data.opcode) {
                 case MovCmpAddSubImmediate::OpCode::MOV:
@@ -74,21 +80,19 @@ Instruction::exec(Cpu& cpu) {
                     carry  = 0;
                     break;
                 case MovCmpAddSubImmediate::OpCode::ADD:
-                    result =
-                      add(cpu.gpr[data.rd], data.offset, carry, overflow);
+                    result = add(gpr[data.rd], data.offset, carry, overflow);
                     break;
                 case MovCmpAddSubImmediate::OpCode::SUB:
                 case MovCmpAddSubImmediate::OpCode::CMP:
-                    result =
-                      sub(cpu.gpr[data.rd], data.offset, carry, overflow);
+                    result = sub(gpr[data.rd], data.offset, carry, overflow);
                     break;
             }
 
             set_cc(carry, overflow, get_bit(result, 31), result == 0);
             if (data.opcode != MovCmpAddSubImmediate::OpCode::CMP)
-                cpu.gpr[data.rd] = result;
+                gpr[data.rd] = result;
         },
-        [&cpu, set_cc](AluOperations& data) {
+        [this, set_cc](AluOperations& data) {
             /*
               Data Processing
               ===============
@@ -108,12 +112,12 @@ Instruction::exec(Cpu& cpu) {
 
               Total = S + mI cycles
             */
-            uint32_t op_1   = cpu.gpr[data.rd];
-            uint32_t op_2   = cpu.gpr[data.rs];
+            uint32_t op_1   = gpr[data.rd];
+            uint32_t op_2   = gpr[data.rs];
             uint32_t result = 0;
 
-            bool carry    = cpu.cpsr.c();
-            bool overflow = cpu.cpsr.v();
+            bool carry    = cpsr.c();
+            bool overflow = cpsr.v();
 
             switch (data.opcode) {
                 case AluOperations::OpCode::AND:
@@ -125,15 +129,15 @@ Instruction::exec(Cpu& cpu) {
                     break;
                 case AluOperations::OpCode::LSL:
                     result = eval_shift(ShiftType::LSL, op_1, op_2, carry);
-                    cpu.internal_cycle();
+                    internal_cycle();
                     break;
                 case AluOperations::OpCode::LSR:
                     result = eval_shift(ShiftType::LSR, op_1, op_2, carry);
-                    cpu.internal_cycle();
+                    internal_cycle();
                     break;
                 case AluOperations::OpCode::ASR:
                     result = eval_shift(ShiftType::ASR, op_1, op_2, carry);
-                    cpu.internal_cycle();
+                    internal_cycle();
                     break;
                 case AluOperations::OpCode::ADC:
                     result = add(op_1, op_2, carry, overflow, carry);
@@ -143,7 +147,7 @@ Instruction::exec(Cpu& cpu) {
                     break;
                 case AluOperations::OpCode::ROR:
                     result = eval_shift(ShiftType::ROR, op_1, op_2, carry);
-                    cpu.internal_cycle();
+                    internal_cycle();
                     break;
                 case AluOperations::OpCode::NEG:
                     result = -op_2;
@@ -161,7 +165,7 @@ Instruction::exec(Cpu& cpu) {
                     result = op_1 * op_2;
                     // mI cycles
                     for (int i = 0; i < multiplier_array_cycles(op_2); i++)
-                        cpu.internal_cycle();
+                        internal_cycle();
                     break;
                 case AluOperations::OpCode::BIC:
                     result = op_1 & ~op_2;
@@ -174,11 +178,11 @@ Instruction::exec(Cpu& cpu) {
             if (data.opcode != AluOperations::OpCode::TST &&
                 data.opcode != AluOperations::OpCode::CMP &&
                 data.opcode != AluOperations::OpCode::CMN)
-                cpu.gpr[data.rd] = result;
+                gpr[data.rd] = result;
 
             set_cc(carry, overflow, get_bit(result, 31), result == 0);
         },
-        [&cpu, set_cc](HiRegisterOperations& data) {
+        [this, set_cc, &is_flushed](HiRegisterOperations& data) {
             /*
               Always
               ======
@@ -193,79 +197,79 @@ Instruction::exec(Cpu& cpu) {
               Total = S or 2S + N cycles
             */
 
-            uint32_t op_1 = cpu.gpr[data.rd];
-            uint32_t op_2 = cpu.gpr[data.rs];
+            uint32_t op_1 = gpr[data.rd];
+            uint32_t op_2 = gpr[data.rs];
 
-            bool carry    = cpu.cpsr.c();
-            bool overflow = cpu.cpsr.v();
+            bool carry    = cpsr.c();
+            bool overflow = cpsr.v();
 
             // PC is already current + 4, so dont need to do that
-            if (data.rd == cpu.PC_INDEX)
+            if (data.rd == PC_INDEX)
                 rst_bit(op_1, 0);
 
-            if (data.rs == cpu.PC_INDEX)
+            if (data.rs == PC_INDEX)
                 rst_bit(op_2, 0);
 
             switch (data.opcode) {
                 case HiRegisterOperations::OpCode::ADD: {
-                    cpu.gpr[data.rd] = add(op_1, op_2, carry, overflow);
+                    gpr[data.rd] = add(op_1, op_2, carry, overflow);
 
-                    if (data.rd == cpu.PC_INDEX)
-                        cpu.is_flushed = true;
+                    if (data.rd == PC_INDEX)
+                        is_flushed = true;
                 } break;
                 case HiRegisterOperations::OpCode::CMP: {
                     uint32_t result = sub(op_1, op_2, carry, overflow);
                     set_cc(carry, overflow, get_bit(result, 31), result == 0);
                 } break;
                 case HiRegisterOperations::OpCode::MOV: {
-                    cpu.gpr[data.rd] = op_2;
+                    gpr[data.rd] = op_2;
 
-                    if (data.rd == cpu.PC_INDEX)
-                        cpu.is_flushed = true;
+                    if (data.rd == PC_INDEX)
+                        is_flushed = true;
                 } break;
                 case HiRegisterOperations::OpCode::BX: {
                     State state = static_cast<State>(get_bit(op_2, 0));
 
-                    if (state != cpu.cpsr.state())
+                    if (state != cpsr.state())
                         glogger.info_bold("State changed");
 
                     // set state
-                    cpu.cpsr.set_state(state);
+                    cpsr.set_state(state);
 
                     // copy to PC
-                    cpu.pc = op_2;
+                    pc = op_2;
 
                     // ignore [1:0] bits for arm and 0 bit for thumb
-                    rst_bit(cpu.pc, 0);
+                    rst_bit(pc, 0);
 
                     if (state == State::Arm)
-                        rst_bit(cpu.pc, 1);
+                        rst_bit(pc, 1);
 
                     // pc is affected so flush the pipeline
-                    cpu.is_flushed = true;
+                    is_flushed = true;
                 } break;
             }
         },
-        [&cpu](PcRelativeLoad& data) {
+        [this](PcRelativeLoad& data) {
             /*
               S   -> reading instruction in step()
               N   -> read from target
               I   -> stored in register
               Total = S + N + I cycles
             */
-            uint32_t pc = cpu.pc;
-            rst_bit(pc, 0);
-            rst_bit(pc, 1);
+            uint32_t pc_ = pc;
+            rst_bit(pc_, 0);
+            rst_bit(pc_, 1);
 
-            cpu.gpr[data.rd] =
-              cpu.bus->read_word(pc + data.word, CpuAccess::NonSequential);
+            gpr[data.rd] =
+              bus->read_word(pc_ + data.word, CpuAccess::NonSequential);
 
-            cpu.internal_cycle();
+            internal_cycle();
 
             // last read is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](LoadStoreRegisterOffset& data) {
+        [this](LoadStoreRegisterOffset& data) {
             /*
               Load
               ====
@@ -281,63 +285,60 @@ Instruction::exec(Cpu& cpu) {
               Total = 2N
             */
 
-            uint32_t address = cpu.gpr[data.rb] + cpu.gpr[data.ro];
+            uint32_t address = gpr[data.rb] + gpr[data.ro];
 
             if (data.load) {
                 if (data.byte) {
-                    cpu.gpr[data.rd] =
-                      cpu.bus->read_byte(address, CpuAccess::NonSequential);
+                    gpr[data.rd] =
+                      bus->read_byte(address, CpuAccess::NonSequential);
                 } else {
-                    cpu.gpr[data.rd] =
-                      cpu.bus->read_word(address, CpuAccess::NonSequential);
+                    gpr[data.rd] =
+                      bus->read_word(address, CpuAccess::NonSequential);
                 }
-                cpu.internal_cycle();
+                internal_cycle();
             } else {
                 if (data.byte) {
-                    cpu.bus->write_byte(address,
-                                        cpu.gpr[data.rd] & 0xFF,
-                                        CpuAccess::NonSequential);
+                    bus->write_byte(
+                      address, gpr[data.rd] & 0xFF, CpuAccess::NonSequential);
                 } else {
-                    cpu.bus->write_word(
-                      address, cpu.gpr[data.rd], CpuAccess::NonSequential);
+                    bus->write_word(
+                      address, gpr[data.rd], CpuAccess::NonSequential);
                 }
             }
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](LoadStoreSignExtendedHalfword& data) {
+        [this](LoadStoreSignExtendedHalfword& data) {
             // Same cycles as above
 
-            uint32_t address = cpu.gpr[data.rb] + cpu.gpr[data.ro];
+            uint32_t address = gpr[data.rb] + gpr[data.ro];
 
             switch (data.s << 1 | data.h) {
                 case 0b00:
-                    cpu.bus->write_halfword(address,
-                                            cpu.gpr[data.rd] & 0xFFFF,
-                                            CpuAccess::NonSequential);
+                    bus->write_halfword(
+                      address, gpr[data.rd] & 0xFFFF, CpuAccess::NonSequential);
                     break;
                 case 0b01:
-                    cpu.gpr[data.rd] =
-                      cpu.bus->read_halfword(address, CpuAccess::NonSequential);
-                    cpu.internal_cycle();
+                    gpr[data.rd] =
+                      bus->read_halfword(address, CpuAccess::NonSequential);
+                    internal_cycle();
                     break;
                 case 0b10:
                     // sign extend and load the byte
-                    cpu.gpr[data.rd] = (static_cast<int32_t>(cpu.bus->read_byte(
-                                          address, CpuAccess::NonSequential))
-                                        << 24) >>
-                                       24;
-                    cpu.internal_cycle();
+                    gpr[data.rd] = (static_cast<int32_t>(bus->read_byte(
+                                      address, CpuAccess::NonSequential))
+                                    << 24) >>
+                                   24;
+                    internal_cycle();
                     break;
                 case 0b11:
                     // sign extend the halfword
-                    cpu.gpr[data.rd] =
-                      (static_cast<int32_t>(cpu.bus->read_halfword(
-                         address, CpuAccess::NonSequential))
-                       << 16) >>
-                      16;
-                    cpu.internal_cycle();
+                    gpr[data.rd] = (static_cast<int32_t>(bus->read_halfword(
+                                      address, CpuAccess::NonSequential))
+                                    << 16) >>
+                                   16;
+                    internal_cycle();
                     break;
 
                     // unreachable
@@ -346,87 +347,85 @@ Instruction::exec(Cpu& cpu) {
             }
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](LoadStoreImmediateOffset& data) {
+        [this](LoadStoreImmediateOffset& data) {
             // Same cycles as above
 
-            uint32_t address = cpu.gpr[data.rb] + data.offset;
+            uint32_t address = gpr[data.rb] + data.offset;
+            dbg(address);
 
             if (data.load) {
                 if (data.byte) {
-                    cpu.gpr[data.rd] =
-                      cpu.bus->read_byte(address, CpuAccess::NonSequential);
+                    gpr[data.rd] =
+                      bus->read_byte(address, CpuAccess::NonSequential);
                 } else {
-                    cpu.gpr[data.rd] =
-                      cpu.bus->read_word(address, CpuAccess::NonSequential);
+                    gpr[data.rd] =
+                      bus->read_word(address, CpuAccess::NonSequential);
                 }
-                cpu.internal_cycle();
+                internal_cycle();
             } else {
                 if (data.byte) {
-                    cpu.bus->write_byte(address,
-                                        cpu.gpr[data.rd] & 0xFF,
-                                        CpuAccess::NonSequential);
+                    bus->write_byte(
+                      address, gpr[data.rd] & 0xFF, CpuAccess::NonSequential);
                 } else {
-                    cpu.bus->write_word(
-                      address, cpu.gpr[data.rd], CpuAccess::NonSequential);
+                    bus->write_word(
+                      address, gpr[data.rd], CpuAccess::NonSequential);
                 }
             }
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](LoadStoreHalfword& data) {
+        [this](LoadStoreHalfword& data) {
             // Same cycles as above
 
-            uint32_t address = cpu.gpr[data.rb] + data.offset;
+            uint32_t address = gpr[data.rb] + data.offset;
 
             if (data.load) {
-                cpu.gpr[data.rd] =
-                  cpu.bus->read_halfword(address, CpuAccess::NonSequential);
-                cpu.internal_cycle();
+                gpr[data.rd] =
+                  bus->read_halfword(address, CpuAccess::NonSequential);
+                internal_cycle();
             } else {
-                cpu.bus->write_halfword(
-                  address, cpu.gpr[data.rd] & 0xFFFF, CpuAccess::NonSequential);
+                bus->write_halfword(
+                  address, gpr[data.rd] & 0xFFFF, CpuAccess::NonSequential);
             }
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](SpRelativeLoad& data) {
+        [this](SpRelativeLoad& data) {
             // Same cycles as above
 
-            uint32_t address = cpu.sp + data.word;
+            uint32_t address = sp + data.word;
 
             if (data.load) {
-                cpu.gpr[data.rd] =
-                  cpu.bus->read_word(address, CpuAccess::Sequential);
-                cpu.internal_cycle();
+                gpr[data.rd] = bus->read_word(address, CpuAccess::Sequential);
+                internal_cycle();
             } else {
-                cpu.bus->write_word(
-                  address, cpu.gpr[data.rd], CpuAccess::Sequential);
+                bus->write_word(address, gpr[data.rd], CpuAccess::Sequential);
             }
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](LoadAddress& data) {
+        [this](LoadAddress& data) {
             // 1S cycle in step()
 
             if (data.sp) {
-                cpu.gpr[data.rd] = cpu.sp + data.word;
+                gpr[data.rd] = sp + data.word;
             } else {
                 // PC is already current + 4, so dont need to do that
                 // force bit 1 to 0
-                cpu.gpr[data.rd] = (cpu.pc & ~(1 << 1)) + data.word;
+                gpr[data.rd] = (pc & ~(1 << 1)) + data.word;
             }
         },
-        [&cpu](AddOffsetStackPointer& data) {
+        [this](AddOffsetStackPointer& data) {
             // 1S cycle in step()
 
-            cpu.sp += data.word;
+            sp += data.word;
         },
-        [&cpu](PushPopRegister& data) {
+        [this, &is_flushed](PushPopRegister& data) {
             /*
               Load
               ====
@@ -435,14 +434,16 @@ Instruction::exec(Cpu& cpu) {
               (n-1) S -> next n - 1 related reads from target
               I       -> stored in register
               N+S     -> if PC is written - taken care of by flush_pipeline()
-              Total = nS + N + I or (n+1)S + 2N + I
+              S       -> if PC, memory read for PC write
+              Total = nS + N + I or (n+2)S + 2N + I
 
               Store
               =====
               N       -> calculating memory address
-              N       -> unrelated write at target
+              N       -> if LR, memory read for PC write
+              N/S     -> unrelated write at target
               (n-1) S -> next n - 1 related writes
-              Total = 2N + (n-1)S
+              Total = 2N + nS or 2N + (n-1)S
             */
             static constexpr uint8_t alignment = 4;
             CpuAccess access                   = CpuAccess::NonSequential;
@@ -450,40 +451,40 @@ Instruction::exec(Cpu& cpu) {
             if (data.load) {
                 for (uint8_t i = 0; i < 8; i++) {
                     if (get_bit(data.regs, i)) {
-                        cpu.gpr[i] = cpu.bus->read_word(cpu.sp, access);
-                        cpu.sp += alignment;
+                        gpr[i] = bus->read_word(sp, access);
+                        sp += alignment;
                         access = CpuAccess::Sequential;
                     }
                 }
 
                 if (data.pclr) {
-                    cpu.pc = cpu.bus->read_word(cpu.sp, access);
-                    cpu.sp += alignment;
-                    cpu.is_flushed = true;
+                    pc = bus->read_word(sp, access);
+                    sp += alignment;
+                    is_flushed = true;
                 }
 
                 // I
-                cpu.internal_cycle();
+                internal_cycle();
             } else {
                 if (data.pclr) {
-                    cpu.sp -= alignment;
-                    cpu.bus->write_word(cpu.sp, cpu.lr, access);
+                    sp -= alignment;
+                    bus->write_word(sp, lr, access);
                     access = CpuAccess::Sequential;
                 }
 
                 for (int8_t i = 7; i >= 0; i--) {
                     if (get_bit(data.regs, i)) {
-                        cpu.sp -= alignment;
-                        cpu.bus->write_word(cpu.sp, cpu.gpr[i], access);
+                        sp -= alignment;
+                        bus->write_word(sp, gpr[i], access);
                         access = CpuAccess::Sequential;
                     }
                 }
             }
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](MultipleLoad& data) {
+        [this](MultipleLoad& data) {
             /*
               Load
               ====
@@ -503,33 +504,34 @@ Instruction::exec(Cpu& cpu) {
 
             static constexpr uint8_t alignment = 4;
 
-            uint32_t rb      = cpu.gpr[data.rb];
+            uint32_t rb      = gpr[data.rb];
             CpuAccess access = CpuAccess::NonSequential;
 
             if (data.load) {
                 for (uint8_t i = 0; i < 8; i++) {
                     if (get_bit(data.regs, i)) {
-                        cpu.gpr[i] = cpu.bus->read_word(rb, access);
+                        gpr[i] = bus->read_word(rb, access);
                         rb += alignment;
                         access = CpuAccess::Sequential;
                     }
                 }
+                internal_cycle();
             } else {
                 for (uint8_t i = 0; i < 8; i++) {
                     if (get_bit(data.regs, i)) {
-                        cpu.bus->write_word(rb, cpu.gpr[i], access);
+                        bus->write_word(rb, gpr[i], access);
                         rb += alignment;
                         access = CpuAccess::Sequential;
                     }
                 }
             }
 
-            cpu.gpr[data.rb] = rb;
+            gpr[data.rb] = rb;
 
             // last read/write is unrelated
-            cpu.next_access = CpuAccess::NonSequential;
+            next_access = CpuAccess::NonSequential;
         },
-        [&cpu](ConditionalBranch& data) {
+        [this, &is_flushed](ConditionalBranch& data) {
             /*
               S   -> reading instruction in step()
               N+S -> if condition is true, branch and refill pipeline
@@ -539,13 +541,13 @@ Instruction::exec(Cpu& cpu) {
             if (data.condition == Condition::AL)
                 glogger.warn("Condition 1110 (AL) is undefined");
 
-            if (!cpu.cpsr.condition(data.condition))
+            if (!cpsr.condition(data.condition))
                 return;
 
-            cpu.pc += data.offset;
-            cpu.is_flushed = true;
+            pc += data.offset;
+            is_flushed = true;
         },
-        [&cpu](SoftwareInterrupt& data) {
+        [this, &is_flushed](SoftwareInterrupt& data) {
             /*
               S   -> reading instruction in step()
               N+S -> refill pipeline
@@ -553,24 +555,24 @@ Instruction::exec(Cpu& cpu) {
             */
 
             // next instruction is one instruction behind PC
-            cpu.lr   = cpu.pc - INSTRUCTION_SIZE;
-            cpu.spsr = cpu.cpsr;
-            cpu.pc   = data.vector;
-            cpu.cpsr.set_state(State::Arm);
-            cpu.chg_mode(Mode::Supervisor);
-            cpu.is_flushed = true;
+            lr   = pc - INSTRUCTION_SIZE;
+            spsr = cpsr;
+            pc   = data.vector;
+            cpsr.set_state(State::Arm);
+            chg_mode(Mode::Supervisor);
+            is_flushed = true;
         },
-        [&cpu](UnconditionalBranch& data) {
+        [this, &is_flushed](UnconditionalBranch& data) {
             /*
               S   -> reading instruction in step()
               N+S -> branch and refill pipeline
               Total = 2S + N
             */
 
-            cpu.pc += data.offset;
-            cpu.is_flushed = true;
+            pc += data.offset;
+            is_flushed = true;
         },
-        [&cpu](LongBranchWithLink& data) {
+        [this, &is_flushed](LongBranchWithLink& data) {
             /*
               S -> prefetched instruction in step()
               N -> fetch from the new address in branch
@@ -582,23 +584,33 @@ Instruction::exec(Cpu& cpu) {
             // 12 bit integer
             int32_t offset = data.offset;
 
-            if (data.high) {
-                uint32_t old_pc = cpu.pc;
+            if (data.low) {
+                uint32_t old_pc = pc;
+                offset <<= 1;
 
-                cpu.pc         = cpu.lr + offset;
-                cpu.lr         = (old_pc - INSTRUCTION_SIZE) | 1;
-                cpu.is_flushed = true;
+                pc         = lr + offset;
+                lr         = (old_pc - INSTRUCTION_SIZE) | 1;
+                is_flushed = true;
             } else {
                 // 12 + 11 = 23 bit
-                offset <<= 11;
+                offset <<= 12;
                 // sign extend
                 offset = (offset << 9) >> 9;
-                cpu.lr = cpu.pc + offset;
+                lr     = pc + offset;
             }
         },
         [](auto& data) {
             glogger.error("Unknown thumb format : {}", typeid(data).name());
         } },
-      data);
+      instruction.data);
+
+    if (is_flushed) {
+        opcodes[0] = bus->read_halfword(pc, CpuAccess::NonSequential);
+        advance_pc_thumb();
+        opcodes[1] = bus->read_halfword(pc, CpuAccess::Sequential);
+        advance_pc_thumb();
+        next_access = CpuAccess::Sequential;
+    } else
+        advance_pc_thumb();
 }
 }

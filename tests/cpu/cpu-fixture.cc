@@ -2,6 +2,7 @@
 
 Psr
 CpuFixture::psr(bool spsr) {
+    uint32_t pc = getr(15);
     Psr psr(0);
     Cpu tmp = cpu;
     arm::Instruction instruction(
@@ -11,17 +12,19 @@ CpuFixture::psr(bool spsr) {
                         .type    = arm::PsrTransfer::Type::Mrs,
                         .imm     = false });
 
-    instruction.exec(tmp);
+    tmp.exec(instruction);
 
     psr.set_all(getr_(0, tmp));
+
+    // reset pc
+    setr(15, pc);
     return psr;
 }
 
 void
 CpuFixture::set_psr(Psr psr, bool spsr) {
-    // R0
+    uint32_t pc  = getr(15);
     uint32_t old = getr(0);
-
     setr(0, psr.raw());
 
     arm::Instruction instruction(
@@ -31,22 +34,23 @@ CpuFixture::set_psr(Psr psr, bool spsr) {
                         .type    = arm::PsrTransfer::Type::Msr,
                         .imm     = false });
 
-    instruction.exec(cpu);
+    cpu.exec(instruction);
 
     setr(0, old);
+
+    // reset PC
+    setr(15, pc);
 }
 
 // We need these workarounds to just use the public API and not private
 // fields. Assuming that these work correctly is necessary. Besides, all that
 // matters is that the public API is correct.
 uint32_t
-CpuFixture::getr_(uint8_t r, Cpu& cpu) {
-    uint32_t addr  = 0x02000000;
-    uint8_t offset = r == 15 ? 4 : 0;
-    uint32_t word  = bus->read_word(addr + offset);
-    Cpu tmp        = cpu;
-    uint32_t ret   = 0xFFFFFFFF;
-    uint8_t base   = r ? 0 : 1;
+CpuFixture::getr_(uint8_t r, Cpu tmp) {
+    uint32_t addr = 0x02000000;
+    uint32_t word = bus->read_word(addr);
+    uint32_t ret  = 0xFFFFFFFF;
+    uint8_t base  = r ? 0 : 1;
 
     // set R0/R1 = addr
     arm::Instruction zero(
@@ -69,16 +73,14 @@ CpuFixture::getr_(uint8_t r, Cpu& cpu) {
                                .up     = true,
                                .pre    = true });
 
-    zero.exec(tmp);
-    get.exec(tmp);
-
-    addr += offset;
+    tmp.exec(zero);
+    tmp.exec(get);
 
     ret = bus->read_word(addr);
 
     bus->write_word(addr, word);
 
-    return ret;
+    return ret - (r == 15 ? 4 : 0); // +4 for rd = 15 in str
 }
 
 void
@@ -86,11 +88,12 @@ CpuFixture::setr_(uint8_t r, uint32_t value, Cpu& cpu) {
     // set register
     arm::Instruction set(
       Condition::AL,
-      arm::DataProcessing{ .operand = value,
-                           .rd      = r,
-                           .rn      = 0,
-                           .set     = false,
-                           .opcode  = arm::DataProcessing::OpCode::MOV });
+      arm::DataProcessing{
+        .operand = (r == 15 ? value - 8 : value), // account for pipeline flush
+        .rd      = r,
+        .rn      = 0,
+        .set     = false,
+        .opcode  = arm::DataProcessing::OpCode::MOV });
 
-    set.exec(cpu);
+    cpu.exec(set);
 }

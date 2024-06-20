@@ -203,11 +203,9 @@ Instruction::Instruction(uint16_t insn) {
         // Format 19: Long branch with link
     } else if ((insn & 0xF000) == 0xF000) {
         uint16_t offset = bit_range(insn, 0, 10);
-        bool high       = get_bit(insn, 11);
+        bool low        = get_bit(insn, 11);
 
-        offset <<= 1;
-
-        data = LongBranchWithLink{ .offset = offset, .high = high };
+        data = LongBranchWithLink{ .offset = offset, .low = low };
     }
 }
 }

@@ -18,7 +18,9 @@ TEST_CASE_METHOD(CpuFixture, "Move Shifted Register", TAG) {
         setr(3, 0);
         setr(5, 6687);
         // LSL
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
         CHECK(getr(3) == 219119616);
 
         setr(5, 0);
@@ -32,7 +34,11 @@ TEST_CASE_METHOD(CpuFixture, "Move Shifted Register", TAG) {
         move->opcode = ShiftType::LSR;
         setr(5, -1827489745);
         // LSR
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(3) == 75301);
         CHECK(!psr().n());
 
@@ -47,7 +53,11 @@ TEST_CASE_METHOD(CpuFixture, "Move Shifted Register", TAG) {
         setr(5, -1827489745);
         move->opcode = ShiftType::ASR;
         // ASR
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(psr().n());
         CHECK(getr(3) == 4294911525);
 
@@ -71,7 +81,10 @@ TEST_CASE_METHOD(CpuFixture, "Add/Subtract", TAG) {
 
     SECTION("ADD") {
         // register
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(5) == 377761225);
 
         add->imm = true;
@@ -94,7 +107,11 @@ TEST_CASE_METHOD(CpuFixture, "Add/Subtract", TAG) {
         add->opcode = AddSubtract::OpCode::SUB;
         setr(2, -((1u << 31) - 1));
         add->offset = 4;
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(5) == 2147483645);
         CHECK(psr().v());
 
@@ -122,7 +139,10 @@ TEST_CASE_METHOD(CpuFixture, "Move/Compare/Add/Subtract Immediate", TAG) {
     MovCmpAddSubImmediate* move = std::get_if<MovCmpAddSubImmediate>(&data);
 
     SECTION("MOV") {
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(5) == 251);
 
         move->offset = 0;
@@ -136,7 +156,11 @@ TEST_CASE_METHOD(CpuFixture, "Move/Compare/Add/Subtract Immediate", TAG) {
         setr(5, 251);
         move->opcode = MovCmpAddSubImmediate::OpCode::CMP;
         CHECK(!psr().z());
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(5) == 251);
         CHECK(psr().z());
 
@@ -152,7 +176,11 @@ TEST_CASE_METHOD(CpuFixture, "Move/Compare/Add/Subtract Immediate", TAG) {
         move->opcode = MovCmpAddSubImmediate::OpCode::ADD;
         setr(5, (1u << 31) - 1);
         // immediate and overflow
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(5) == 2147483898);
         CHECK(psr().v());
 
@@ -168,7 +196,11 @@ TEST_CASE_METHOD(CpuFixture, "Move/Compare/Add/Subtract Immediate", TAG) {
         setr(5, 251);
         move->opcode = MovCmpAddSubImmediate::OpCode::SUB;
         CHECK(!psr().z());
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(5) == 0);
         CHECK(psr().z());
 
@@ -190,8 +222,11 @@ TEST_CASE_METHOD(CpuFixture, "ALU Operations", TAG) {
     setr(3, -991);
 
     SECTION("AND") {
+        uint32_t cycles = bus->get_cycles();
         // 328940001 & -991
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
         CHECK(getr(1) == 328939553);
         CHECK(!psr().n());
 
@@ -221,8 +256,12 @@ TEST_CASE_METHOD(CpuFixture, "ALU Operations", TAG) {
     SECTION("LSL") {
         setr(3, 3);
         alu->opcode = AluOperations::OpCode::LSL;
+
+        uint32_t cycles = bus->get_cycles();
         // 328940001 << 3
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 1S + 1I (shift)
+
         CHECK(getr(1) == 2631520008);
         CHECK(psr().n());
 
@@ -410,8 +449,12 @@ TEST_CASE_METHOD(CpuFixture, "ALU Operations", TAG) {
 
     SECTION("MUL") {
         alu->opcode = AluOperations::OpCode::MUL;
+
+        uint32_t cycles = bus->get_cycles();
         // 328940001 * -991 (lower 32 bits) (-325979540991 & 0xFFFFFFFF)
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + mI (m = 2 for -991)
+
         CHECK(getr(1) == 437973505);
 
         setr(3, 0);
@@ -462,19 +505,22 @@ TEST_CASE_METHOD(CpuFixture, "Hi Register Operations/Branch Exchange", TAG) {
     };
     HiRegisterOperations* hi = std::get_if<HiRegisterOperations>(&data);
 
-    setr(15, 3452948950);
+    setr(15, 3452948948);
     setr(5, 958656720);
 
     SECTION("ADD") {
+        uint32_t cycles = bus->get_cycles();
         exec(data);
-        CHECK(getr(5) == 116638374);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
+        CHECK(getr(5) == 116638372);
 
         // hi + hi
         hi->rd = 14;
         hi->rs = 15;
         setr(14, 42589);
         exec(data);
-        CHECK(getr(14) == 3452991539);
+        CHECK(getr(14) == 3452991537);
     }
 
     SECTION("CMP") {
@@ -500,7 +546,7 @@ TEST_CASE_METHOD(CpuFixture, "Hi Register Operations/Branch Exchange", TAG) {
         hi->opcode = HiRegisterOperations::OpCode::MOV;
         exec(data);
 
-        CHECK(getr(5) == 3452948950);
+        CHECK(getr(5) == 3452948948);
     }
 
     SECTION("BX") {
@@ -509,8 +555,13 @@ TEST_CASE_METHOD(CpuFixture, "Hi Register Operations/Branch Exchange", TAG) {
 
         SECTION("Arm") {
             setr(10, 2189988);
+
+            uint32_t cycles = bus->get_cycles();
             exec(data);
-            CHECK(getr(15) == 2189988);
+            CHECK(bus->get_cycles() == cycles + 3); // 2S + N cycles
+
+            // +4 for pipeline flush
+            CHECK(getr(15) == 2189988 + 4);
             // switched to arm
             CHECK(psr().state() == State::Arm);
         }
@@ -518,7 +569,9 @@ TEST_CASE_METHOD(CpuFixture, "Hi Register Operations/Branch Exchange", TAG) {
         SECTION("Thumb") {
             setr(10, 2189989);
             exec(data);
-            CHECK(getr(15) == 2189988);
+
+            // +4 for pipeline flush
+            CHECK(getr(15) == 2189988 + 4);
 
             // switched to thumb
             CHECK(psr().state() == State::Thumb);
@@ -535,7 +588,11 @@ TEST_CASE_METHOD(CpuFixture, "PC Relative Load", TAG) {
     bus->write_word(0x300454C, 489753492);
 
     CHECK(getr(0) == 0);
+
+    uint32_t cycles = bus->get_cycles();
     exec(data);
+    CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
+
     CHECK(getr(0) == 489753492);
 }
 
@@ -552,7 +609,11 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Register Offset", TAG) {
     SECTION("store") {
         // 0x3003000 + 0x332
         CHECK(bus->read_word(0x3003332) == 0);
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N cycles
+
         CHECK(bus->read_word(0x3003332) == 389524259);
 
         // byte
@@ -565,7 +626,11 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Register Offset", TAG) {
     SECTION("load") {
         load->load = true;
         bus->write_word(0x3003332, 11123489);
+
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
+
         CHECK(getr(3) == 11123489);
 
         // byte
@@ -589,21 +654,27 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
     SECTION("SH = 00") {
         // 0x3003000 + 0x332
         CHECK(bus->read_word(0x3003332) == 0);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N cycles
         CHECK(bus->read_word(0x3003332) == 43811);
     }
 
     SECTION("SH = 01") {
         load->h = true;
         bus->write_word(0x3003332, 11123489);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
         CHECK(getr(3) == 47905);
     }
 
     SECTION("SH = 10") {
         load->s = true;
         bus->write_word(0x3003332, 34521594);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
         // sign extended 250 byte (0xFA)
         CHECK(getr(3) == 4294967290);
     }
@@ -613,7 +684,9 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Sign Extended Byte/Halfword", TAG) {
         load->h = true;
         bus->write_word(0x3003332, 11123489);
         // sign extended 47905 halfword (0xBB21)
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
         CHECK(getr(3) == 4294949665);
     }
 }
@@ -631,7 +704,9 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Immediate Offset", TAG) {
     SECTION("store") {
         // 0x30066A + 0x6E
         CHECK(bus->read_word(0x30066D8) == 0);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N cycles
         CHECK(bus->read_word(0x30066D8) == 389524259);
 
         // byte
@@ -644,7 +719,9 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store with Immediate Offset", TAG) {
     SECTION("load") {
         load->load = true;
         bus->write_word(0x30066D8, 11123489);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
         CHECK(getr(3) == 11123489);
 
         // byte
@@ -665,14 +742,18 @@ TEST_CASE_METHOD(CpuFixture, "Load/Store Halfword", TAG) {
     SECTION("store") {
         // 0x300666A + 0x6E
         CHECK(bus->read_word(0x30066D8) == 0);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N cycles
         CHECK(bus->read_word(0x30066D8) == 43811);
     }
 
     SECTION("load") {
         load->load = true;
         bus->write_word(0x30066D8, 11123489);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
         CHECK(getr(3) == 47905);
     }
 }
@@ -689,14 +770,18 @@ TEST_CASE_METHOD(CpuFixture, "SP Relative Load", TAG) {
     SECTION("store") {
         // 0x3004A8A + 0x328
         CHECK(bus->read_word(0x3004DB2) == 0);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 2); // 2N cycles
         CHECK(bus->read_word(0x3004DB2) == 2349505744);
     }
 
     SECTION("load") {
         load->load = true;
         bus->write_word(0x3004DB2, 11123489);
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 3); // S + N + I cycles
         CHECK(getr(1) == 11123489);
     }
 }
@@ -711,8 +796,11 @@ TEST_CASE_METHOD(CpuFixture, "Load Address", TAG) {
     setr(13, 69879977);
 
     SECTION("PC") {
+        uint32_t cycles = bus->get_cycles();
         exec(data);
-        CHECK(getr(1) == 337293);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+        // word align 337293
+        CHECK(getr(1) == 337292);
     }
 
     SECTION("SP") {
@@ -730,7 +818,9 @@ TEST_CASE_METHOD(CpuFixture, "Add Offset to Stack Pointer", TAG) {
     setr(13, 69879977);
 
     SECTION("positive") {
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
         CHECK(getr(13) == 69880450);
     }
 
@@ -772,7 +862,9 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
         setr(13, address + alignment * 5);
 
         SECTION("without LR") {
+            uint32_t cycles = bus->get_cycles();
             exec(data);
+            CHECK(bus->get_cycles() == cycles + 6); // 2N + (n-1)S, n = 5
             checker();
             CHECK(getr(13) == address);
         }
@@ -783,7 +875,10 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
             setr(14, 999304);
             // add another word on stack (top + 4)
             setr(13, address + alignment * 6);
+
+            uint32_t cycles = bus->get_cycles();
             exec(data);
+            CHECK(bus->get_cycles() == cycles + 7); // 2N + nS, n = 5
 
             CHECK(bus->read_word(address + alignment * 5) == 999304);
             checker();
@@ -819,19 +914,25 @@ TEST_CASE_METHOD(CpuFixture, "Push/Pop Registers", TAG) {
         // set stack pointer to bottom of stack
         setr(13, address);
 
-        SECTION("without SP") {
+        SECTION("without PC") {
+            uint32_t cycles = bus->get_cycles();
             exec(data);
+            CHECK(bus->get_cycles() == cycles + 7); // nS + N + I, n = 5
             checker();
             CHECK(getr(13) == address + alignment * 5);
         }
 
-        SECTION("with SP") {
+        SECTION("with PC") {
             push->pclr = true;
             // populate next address
             bus->write_word(address + alignment * 5, 93333912);
-            exec(data);
 
-            CHECK(getr(15) == 93333912);
+            uint32_t cycles = bus->get_cycles();
+            exec(data);
+            CHECK(bus->get_cycles() == cycles + 10); //(n+2)S + 2N + I, n = 5
+
+            // +4 for flushed pipeline
+            CHECK(getr(15) == 93333912 + 4);
             checker();
             CHECK(getr(13) == address + alignment * 6);
         }
@@ -858,7 +959,9 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
         // base
         setr(2, address);
 
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 6); //(n-1)S + 2N, n = 5
 
         CHECK(bus->read_word(address) == 237164);
         CHECK(bus->read_word(address + alignment) == address);
@@ -883,7 +986,10 @@ TEST_CASE_METHOD(CpuFixture, "Multiple Load/Store", TAG) {
         // base
         setr(2, address);
 
+        uint32_t cycles = bus->get_cycles();
         exec(data);
+        CHECK(bus->get_cycles() == cycles + 7); // nS + N + 1, n = 5
+
         CHECK(getr(0) == 237164);
         CHECK(getr(1) == 0);
         CHECK(getr(2) == address + alignment * 5); // write back
@@ -900,72 +1006,93 @@ TEST_CASE_METHOD(CpuFixture, "Conditional Branch", TAG) {
       ConditionalBranch{ .offset = -192, .condition = Condition::EQ };
     ConditionalBranch* branch = std::get_if<ConditionalBranch>(&data);
 
+    Psr cpsr = psr();
+    cpsr.set_state(State::Thumb);
+
     setr(15, 4589344);
 
     SECTION("z") {
-        Psr cpsr = psr();
+        uint32_t cycles = bus->get_cycles();
         // condition is false
         exec(data);
-        CHECK(getr(15) == 4589344);
+        CHECK(bus->get_cycles() == cycles + 1); // 1S
+
+        // +2 for pc advance
+        CHECK(getr(15) == 4589344 + 2);
 
         cpsr.set_z(true);
         set_psr(cpsr);
+        cycles = bus->get_cycles();
         // condition is true
         exec(data);
-        CHECK(getr(15) == 4589152);
+        CHECK(bus->get_cycles() == cycles + 3); // 2S + N
+        // +4 for pipeline flush
+        CHECK(getr(15) == 4589156);
     }
 
     SECTION("c") {
         branch->condition = Condition::CS;
-        Psr cpsr          = psr();
         // condition is false
         exec(data);
-        CHECK(getr(15) == 4589344);
+
+        // +2 for pc advance
+        CHECK(getr(15) == 4589346);
 
         cpsr.set_c(true);
         set_psr(cpsr);
         // condition is true
         exec(data);
-        CHECK(getr(15) == 4589152);
+        // +4 for pipeline flush
+        CHECK(getr(15) == 4589156);
     }
 
     SECTION("n") {
         branch->condition = Condition::MI;
-        Psr cpsr          = psr();
         // condition is false
         exec(data);
-        CHECK(getr(15) == 4589344);
+
+        // +2 for pc advance
+        CHECK(getr(15) == 4589346);
 
         cpsr.set_n(true);
         set_psr(cpsr);
         // condition is true
         exec(data);
-        CHECK(getr(15) == 4589152);
+        // +4 for pipeline flush
+        CHECK(getr(15) == 4589156);
     }
 
     SECTION("v") {
         branch->condition = Condition::VS;
-        Psr cpsr          = psr();
         // condition is false
         exec(data);
-        CHECK(getr(15) == 4589344);
+
+        // +2 for pc advance
+        CHECK(getr(15) == 4589346);
 
         cpsr.set_v(true);
         set_psr(cpsr);
         // condition is true
         exec(data);
-        CHECK(getr(15) == 4589152);
+        // +4 for pipeline flush
+        CHECK(getr(15) == 4589156);
     }
 }
 
 TEST_CASE_METHOD(CpuFixture, "Software Interrupt", TAG) {
-    InstructionData data = SoftwareInterrupt{ .vector = 33 };
+    InstructionData data = SoftwareInterrupt{ .vector = 32 };
 
     setr(15, 4492);
+
+    uint32_t cycles = bus->get_cycles();
+    // condition is true
     exec(data);
+    CHECK(bus->get_cycles() == cycles + 3); // 2S + N
+
     CHECK(psr().raw() == psr(true).raw());
     CHECK(getr(14) == 4490);
-    CHECK(getr(15) == 33);
+    // +4 for flushed pipeline
+    CHECK(getr(15) == 36);
     CHECK(psr().state() == State::Arm);
     CHECK(psr().mode() == Mode::Supervisor);
 }
@@ -974,23 +1101,39 @@ TEST_CASE_METHOD(CpuFixture, "Unconditional Branch", TAG) {
     InstructionData data = UnconditionalBranch{ .offset = -920 };
 
     setr(15, 4589344);
+
+    uint32_t cycles = bus->get_cycles();
     exec(data);
-    CHECK(getr(15) == 4588424);
+    CHECK(bus->get_cycles() == cycles + 3); // 2S + N
+
+    // +4 for flushed pipeline
+    CHECK(getr(15) == 4588428);
 }
 
 TEST_CASE_METHOD(CpuFixture, "Long Branch With Link", TAG) {
-    InstructionData data = LongBranchWithLink{ .offset = 3262, .high = false };
+    InstructionData data =
+      LongBranchWithLink{ .offset = 0b10010111110, .low = false };
     LongBranchWithLink* branch = std::get_if<LongBranchWithLink>(&data);
 
     // high
     setr(15, 4589344);
 
+    uint32_t cycles = bus->get_cycles();
     exec(data);
-    CHECK(getr(14) == 2881312);
+    CHECK(bus->get_cycles() == cycles + 1); // 1S
+
+    CHECK(getr(14) == 1173280);
 
     // low
-    branch->high = true;
+    branch->low = true;
+
+    cycles = bus->get_cycles();
     exec(data);
+    CHECK(bus->get_cycles() == cycles + 3); // 2S + N
+
+    // +2 for advancing thumb, then -2 to get the next instruciton of current
+    // executing instruction, then set bit 0
     CHECK(getr(14) == 4589343);
-    CHECK(getr(15) == 2884574);
+    // 1175712 + 4 for flushed pipeline
+    CHECK(getr(15) == 1175712);
 }

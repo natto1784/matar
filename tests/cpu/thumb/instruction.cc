@@ -447,20 +447,20 @@ TEST_CASE("Unconditional Branch") {
 }
 
 TEST_CASE("Long Branch with link") {
-    uint16_t raw = 0b1111010011101100;
+    uint16_t raw = 0b1111110011101100;
     Instruction instruction(raw);
     LongBranchWithLink* bl = nullptr;
 
     REQUIRE((bl = std::get_if<LongBranchWithLink>(&instruction.data)));
     // 1260 << 1
-    CHECK(bl->offset == 2520);
-    CHECK(bl->high == false);
+    CHECK(bl->offset == 1260);
+    CHECK(bl->low == true);
 
 #ifdef DISASSEMBLER
-    CHECK(instruction.disassemble() == "BL #2520");
+    CHECK(instruction.disassemble() == "BL #1260");
 
-    bl->high = true;
-    CHECK(instruction.disassemble() == "BLH #2520");
+    bl->low = false;
+    CHECK(instruction.disassemble() == "BLH #1260");
 #endif
 }
 

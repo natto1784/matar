@@ -251,7 +251,7 @@ struct UnconditionalBranch {
 
 struct LongBranchWithLink {
     uint16_t offset;
-    bool high;
+    bool low;
 };
 
 using InstructionData = std::variant<MoveShiftedRegister,
