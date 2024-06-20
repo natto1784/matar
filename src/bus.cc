@@ -78,24 +78,38 @@ Bus::init_cycle_count() {
     return map;
 }
 
-template<unsigned int N>
-std::optional<std::span<const uint8_t>>
+template<typename T>
+std::optional<T>
 Bus::read(uint32_t address) const {
 
-    switch (address >> 24 & 0xF) {
+    // this is cleaned than std::enable_if
+    static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
+                    std::is_same_v<T, uint32_t>,
+                  "Can only read uint8_t, uin16_t or uint32_t");
 
+    constexpr int N = std::is_same_v<T, uint8_t>    ? 1
+                      : std::is_same_v<T, uint16_t> ? 2
+                      : std::is_same_v<T, uint32_t> ? 4
+                                                    : 0;
+
+    switch (address >> 24 & 0xF) {
 #define MATCHES(AREA, area)                                                    \
-    case AREA##_REGION:                                                        \
-        if (address > AREA##_START + area.size() - N)                          \
+    case AREA##_REGION: {                                                      \
+        uint32_t i = address - AREA##_START;                                   \
+        if (i > area.size() - N)                                               \
             break;                                                             \
-        return std::span<const uint8_t>(&area[address - AREA##_START], N);
+        if constexpr (std::is_same_v<T, uint8_t>)                              \
+            return area[i];                                                    \
+        else if constexpr (std::is_same_v<T, uint16_t>)                        \
+            return area[i] | area[i + 1] << 8;                                 \
+        else if constexpr (std::is_same_v<T, uint32_t>)                        \
+            return area[i] | area[i + 1] << 8 | area[i + 2] << 16 |            \
+                   area[i + 3] << 24;                                          \
+    }
 
 #define MATCHES_PAK(AREA, area)                                                \
-    case AREA##_REGION:                                                        \
     case AREA##_REGION + 1:                                                    \
-        if (address > AREA##_START + area.size() - N)                          \
-            break;                                                             \
-        return std::span<const uint8_t>(&area[address - AREA##_START], N);
+        MATCHES(AREA, area)
 
         MATCHES(BIOS, bios)
         MATCHES(BOARD_WRAM, board_wram)
@@ -107,7 +121,6 @@ Bus::read(uint32_t address) const {
         MATCHES_PAK(ROM_0, rom)
         MATCHES_PAK(ROM_1, rom)
         MATCHES_PAK(ROM_2, rom)
-
 #undef MATCHES_PAK
 #undef MATCHES
     }
@@ -116,17 +129,36 @@ Bus::read(uint32_t address) const {
     return {};
 }
 
-template<unsigned int N>
-std::optional<std::span<uint8_t>>
-Bus::write(uint32_t address) {
+template<typename T>
+void
+Bus::write(uint32_t address, T value) {
+    static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
+                    std::is_same_v<T, uint32_t>,
+                  "Can only write uint8_t, uin16_t or uint32_t");
 
+    constexpr int N = std::is_same_v<T, uint8_t>    ? 1
+                      : std::is_same_v<T, uint16_t> ? 2
+                      : std::is_same_v<T, uint32_t> ? 4
+                                                    : 0;
     switch (address >> 24 & 0xF) {
-
 #define MATCHES(AREA, area)                                                    \
-    case AREA##_REGION:                                                        \
-        if (address > AREA##_START + area.size() - N)                          \
+    case AREA##_REGION: {                                                      \
+        uint32_t i = address - AREA##_START;                                   \
+        if (i > area.size() - N)                                               \
             break;                                                             \
-        return std::span<uint8_t>(&area[address - AREA##_START], N);
+        if constexpr (std::is_same_v<T, uint8_t>) {                            \
+            area[i] = value;                                                   \
+        } else if constexpr (std::is_same_v<T, uint16_t>) {                    \
+            area[i]     = value & 0xFF;                                        \
+            area[i + 1] = value >> 8 & 0xFF;                                   \
+        } else if constexpr (std::is_same_v<T, uint32_t>) {                    \
+            area[i]     = value & 0xFF;                                        \
+            area[i + 1] = value >> 8 & 0xFF;                                   \
+            area[i + 2] = value >> 16 & 0xFF;                                  \
+            area[i + 3] = value >> 24 & 0xFF;                                  \
+        }                                                                      \
+        return;                                                                \
+    }
 
         MATCHES(BOARD_WRAM, board_wram)
         MATCHES(CHIP_WRAM, chip_wram)
@@ -138,7 +170,6 @@ Bus::write(uint32_t address) {
     }
 
     glogger.error("Invalid memory region written");
-    return {};
 }
 
 uint8_t
@@ -146,8 +177,7 @@ Bus::read_byte(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_byte(address);
 
-    auto data = read<1>(address);
-    return data.transform([](auto value) { return value[0]; }).value_or(0xFF);
+    return read<uint8_t>(address).value_or(0xFF);
 }
 
 void
@@ -157,10 +187,7 @@ Bus::write_byte(uint32_t address, uint8_t byte) {
         return;
     }
 
-    auto data = write<1>(address);
-
-    if (data.has_value())
-        data.value()[0] = byte;
+    write<uint8_t>(address, byte);
 }
 
 uint16_t
@@ -171,9 +198,7 @@ Bus::read_halfword(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_halfword(address);
 
-    return read<2>(address)
-      .transform([](auto value) { return value[0] | value[1] << 8; })
-      .value_or(0xFFFF);
+    return read<uint16_t>(address).value_or(0xFFFF);
 }
 
 void
@@ -186,13 +211,7 @@ Bus::write_halfword(uint32_t address, uint16_t halfword) {
         return;
     }
 
-    auto data = write<2>(address);
-
-    if (data.has_value()) {
-        auto value = data.value();
-        value[0]   = halfword & 0xFF;
-        value[1]   = halfword >> 8 & 0xFF;
-    }
+    write<uint16_t>(address, halfword);
 }
 
 uint32_t
@@ -203,11 +222,7 @@ Bus::read_word(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_word(address);
 
-    return read<4>(address)
-      .transform([](auto value) {
-          return value[0] | value[1] << 8 | value[2] << 16 | value[3] << 24;
-      })
-      .value_or(0xFFFFFFFF);
+    return read<uint32_t>(address).value_or(0xFFFFFFFF);
 }
 
 void
@@ -220,15 +235,7 @@ Bus::write_word(uint32_t address, uint32_t word) {
         return;
     }
 
-    auto data = write<4>(address);
-
-    if (data.has_value()) {
-        auto value = data.value();
-        value[0]   = word & 0xFF;
-        value[1]   = word >> 8 & 0xFF;
-        value[2]   = word >> 16 & 0xFF;
-        value[3]   = word >> 24 & 0xFF;
-    }
+    write<uint32_t>(address, word);
 }
 
 void
