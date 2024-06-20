@@ -84,11 +84,11 @@ class Bus {
         }
     }
 
-    template<unsigned int>
-    std::optional<std::span<const uint8_t>> read(uint32_t) const;
+    template<typename T>
+    std::optional<T> read(uint32_t address) const;
 
-    template<unsigned int>
-    std::optional<std::span<uint8_t>> write(uint32_t);
+    template<typename T>
+    void write(uint32_t address, T value);
 
     uint32_t cycles = 0;
     struct cycle_count {
