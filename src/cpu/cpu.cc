@@ -14,7 +14,7 @@ Cpu::Cpu(std::shared_ptr<Bus> bus) noexcept
     glogger.info("CPU successfully initialised");
 
     // PC always points to two instructions ahead
-    flush_pipeline();
+    flush_pipeline<State::Arm>();
 }
 
 /* change modes */
@@ -163,12 +163,10 @@ Cpu::advance_pc_arm() {
     rst_bit(pc, 1);
     pc += arm::INSTRUCTION_SIZE;
 };
+
 void
 Cpu::advance_pc_thumb() {
     rst_bit(pc, 0);
     pc += thumb::INSTRUCTION_SIZE;
 }
-
-void
-Cpu::flush_pipeline() {};
 }

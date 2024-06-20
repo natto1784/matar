@@ -604,13 +604,9 @@ Cpu::exec(thumb::Instruction& instruction) {
         } },
       instruction.data);
 
-    if (is_flushed) {
-        opcodes[0] = bus->read_halfword(pc, CpuAccess::NonSequential);
-        advance_pc_thumb();
-        opcodes[1] = bus->read_halfword(pc, CpuAccess::Sequential);
-        advance_pc_thumb();
-        next_access = CpuAccess::Sequential;
-    } else
+    if (is_flushed)
+        flush_pipeline<State::Thumb>();
+    else
         advance_pc_thumb();
 }
 }

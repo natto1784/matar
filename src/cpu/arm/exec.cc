@@ -705,13 +705,9 @@ Cpu::exec(arm::Instruction& instruction) {
         } },
       instruction.data);
 
-    if (is_flushed) {
-        opcodes[0] = bus->read_word(pc, CpuAccess::NonSequential);
-        advance_pc_arm();
-        opcodes[1] = bus->read_word(pc, CpuAccess::Sequential);
-        advance_pc_arm();
-        next_access = CpuAccess::Sequential;
-    } else
+    if (is_flushed)
+        flush_pipeline<State::Arm>();
+    else
         advance_pc_arm();
 }
 }

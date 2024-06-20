@@ -98,7 +98,21 @@ class Cpu {
     void advance_pc_arm();
     void advance_pc_thumb();
 
-    void flush_pipeline();
+    template<State S>
+    void flush_pipeline() {
+        if constexpr (S == State::Arm) {
+            opcodes[0] = bus->read_word(pc, CpuAccess::NonSequential);
+            advance_pc_arm();
+            opcodes[1] = bus->read_word(pc, CpuAccess::Sequential);
+            advance_pc_arm();
+        } else {
+            opcodes[0] = bus->read_halfword(pc, CpuAccess::NonSequential);
+            advance_pc_thumb();
+            opcodes[1] = bus->read_halfword(pc, CpuAccess::Sequential);
+            advance_pc_thumb();
+        }
+        next_access = CpuAccess::Sequential;
+    }
 
 #ifdef GDB_DEBUG
     friend class GdbRsp;
