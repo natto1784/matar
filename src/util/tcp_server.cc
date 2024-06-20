@@ -1,4 +1,5 @@
 #include "tcp_server.hh"
+#include <netinet/tcp.h>
 
 #include <cstring>
 #include <format>
@@ -35,13 +36,22 @@ TcpServer::run() {
 
 void
 TcpServer::start(uint port) {
+    int opts  = 0;
     server_fd = socket(PF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         throw std::runtime_error("creating socket failed");
     }
 
     int option = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+
+    opts +=
+      setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+    opts +=
+      setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &option, sizeof(option));
+
+    if (opts != 0) {
+        throw std::runtime_error("failed to set socket opts");
+    }
 
     std::memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family      = PF_INET;
@@ -68,9 +78,8 @@ TcpServer::send(std::string msg) {
 
 std::string
 TcpServer::receive(uint length) {
-    char msg[MAX_PACKET_SIZE];
     ssize_t num_bytes = recv(client_fd, msg, length, 0);
-    msg[length]       = '\0';
+    msg[num_bytes]    = '\0';
     if (num_bytes < 0) {
         throw std::runtime_error(
           std::format("failed to receive messages: {}\n", strerror(errno)));
