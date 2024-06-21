@@ -76,6 +76,24 @@ ADDR FIFO_A_H    = 0x40000A2;
 ADDR FIFO_B_L    = 0x40000A4;
 ADDR FIFO_B_H    = 0x40000A6;
 
+// dma
+ADDR DMA0SAD   = 0x40000B0;
+ADDR DMA0DAD   = 0x40000B4;
+ADDR DMA0CNT_L = 0x40000B8;
+ADDR DMA0CNT_H = 0x40000BA;
+ADDR DMA1SAD   = 0x40000BC;
+ADDR DMA1DAD   = 0x40000C0;
+ADDR DMA1CNT_L = 0x40000C4;
+ADDR DMA1CNT_H = 0x40000C6;
+ADDR DMA2SAD   = 0x40000C8;
+ADDR DMA2DAD   = 0x40000CC;
+ADDR DMA2CNT_L = 0x40000D0;
+ADDR DMA2CNT_H = 0x40000D2;
+ADDR DMA3SAD   = 0x40000D4;
+ADDR DMA3DAD   = 0x40000D8;
+ADDR DMA3CNT_L = 0x40000DC;
+ADDR DMA3CNT_H = 0x40000DE;
+
 // system
 ADDR POSTFLG = 0x4000300;
 ADDR IME     = 0x4000208;
@@ -130,45 +148,87 @@ IoDevices::read_halfword(uint32_t address) const {
     case name:                                                                 \
         return var;
 
-        // lcd
-        READ(DISPCNT, lcd.lcd_control)
-        READ(DISPSTAT, lcd.general_lcd_status)
-        READ(VCOUNT, lcd.vertical_counter)
-        READ(WININ, lcd.inside_win_0_1)
-        READ(WINOUT, lcd.outside_win)
-        READ(BLDCNT, lcd.color_special_effects_selection)
-        READ(BLDALPHA, lcd.alpha_blending_coefficients)
+            // lcd
+        case DISPCNT:
+            return display.lcd_control.read();
+        case DISPSTAT:
+            return display.general_lcd_status.read();
+        case BG0CNT:
+            return display.bg_control[0].read();
+        case BG1CNT:
+            return display.bg_control[1].read();
+        case BG2CNT:
+            return display.bg_control[2].read();
+        case BG3CNT:
+            return display.bg_control[3].read();
 
-        // sound
-        READ(SOUND1CNT_L, sound.ch1_sweep)
-        READ(SOUND1CNT_H, sound.ch1_duty_length_env)
-        READ(SOUND1CNT_X, sound.ch1_freq_control)
-        READ(SOUND2CNT_L, sound.ch2_duty_length_env)
-        READ(SOUND2CNT_H, sound.ch2_freq_control)
-        READ(SOUND3CNT_L, sound.ch3_stop_wave_ram_select)
-        READ(SOUND3CNT_H, sound.ch3_length_volume)
-        READ(SOUND3CNT_X, sound.ch3_freq_control)
-        READ(WAVE_RAM0_L, sound.ch3_wave_pattern[0]);
-        READ(WAVE_RAM0_H, sound.ch3_wave_pattern[1]);
-        READ(WAVE_RAM1_L, sound.ch3_wave_pattern[2]);
-        READ(WAVE_RAM1_H, sound.ch3_wave_pattern[3]);
-        READ(WAVE_RAM2_L, sound.ch3_wave_pattern[4]);
-        READ(WAVE_RAM2_H, sound.ch3_wave_pattern[5]);
-        READ(WAVE_RAM3_L, sound.ch3_wave_pattern[6]);
-        READ(WAVE_RAM3_H, sound.ch3_wave_pattern[7]);
-        READ(SOUND4CNT_L, sound.ch4_length_env);
-        READ(SOUND4CNT_H, sound.ch4_freq_control);
-        READ(SOUNDCNT_L, sound.ctrl_stereo_volume);
-        READ(SOUNDCNT_H, sound.ctrl_mixing);
-        READ(SOUNDCNT_X, sound.ctrl_sound_on_off);
-        READ(SOUNDBIAS, sound.pwm_control);
+            READ(VCOUNT, display.vertical_counter)
+            READ(WININ, display.inside_win_0_1)
+            READ(WINOUT, display.outside_win)
+            READ(BLDCNT, display.color_special_effects_selection)
+            READ(BLDALPHA, display.alpha_blending_coefficients)
 
-        // system
-        READ(POSTFLG, system.post_boot_flag)
-        READ(IME, system.interrupt_master_enabler)
-        READ(IE, system.interrupt_enable);
-        READ(IF, system.interrupt_request_flags);
-        READ(WAITCNT, system.waitstate_control);
+            // sound
+            READ(SOUND1CNT_L, sound.ch1_sweep)
+            READ(SOUND1CNT_H, sound.ch1_duty_length_env)
+            READ(SOUND1CNT_X, sound.ch1_freq_control)
+            READ(SOUND2CNT_L, sound.ch2_duty_length_env)
+            READ(SOUND2CNT_H, sound.ch2_freq_control)
+            READ(SOUND3CNT_L, sound.ch3_stop_wave_ram_select)
+            READ(SOUND3CNT_H, sound.ch3_length_volume)
+            READ(SOUND3CNT_X, sound.ch3_freq_control)
+            READ(WAVE_RAM0_L, sound.ch3_wave_pattern[0]);
+            READ(WAVE_RAM0_H, sound.ch3_wave_pattern[1]);
+            READ(WAVE_RAM1_L, sound.ch3_wave_pattern[2]);
+            READ(WAVE_RAM1_H, sound.ch3_wave_pattern[3]);
+            READ(WAVE_RAM2_L, sound.ch3_wave_pattern[4]);
+            READ(WAVE_RAM2_H, sound.ch3_wave_pattern[5]);
+            READ(WAVE_RAM3_L, sound.ch3_wave_pattern[6]);
+            READ(WAVE_RAM3_H, sound.ch3_wave_pattern[7]);
+            READ(SOUND4CNT_L, sound.ch4_length_env);
+            READ(SOUND4CNT_H, sound.ch4_freq_control);
+            READ(SOUNDCNT_L, sound.ctrl_stereo_volume);
+            READ(SOUNDCNT_H, sound.ctrl_mixing);
+            READ(SOUNDCNT_X, sound.ctrl_sound_on_off);
+            READ(SOUNDBIAS, sound.pwm_control);
+
+            // dma
+        case DMA0CNT_H:
+            return dma.channels[0].control.read();
+        case DMA1CNT_H:
+            return dma.channels[1].control.read();
+        case DMA2CNT_H:
+            return dma.channels[2].control.read();
+        case DMA3CNT_H:
+            return dma.channels[3].control.read();
+
+            READ(DMA0SAD, dma.channels[0].source[0]);
+            READ(DMA0SAD + 2, dma.channels[0].source[1]);
+            READ(DMA0DAD, dma.channels[0].destination[0]);
+            READ(DMA0DAD + 2, dma.channels[0].destination[1]);
+            READ(DMA0CNT_L, dma.channels[0].word_count);
+            READ(DMA1SAD, dma.channels[1].source[0]);
+            READ(DMA1SAD + 2, dma.channels[1].source[1]);
+            READ(DMA1DAD, dma.channels[1].destination[0]);
+            READ(DMA1DAD + 2, dma.channels[1].destination[1]);
+            READ(DMA1CNT_L, dma.channels[1].word_count);
+            READ(DMA2SAD, dma.channels[2].source[0]);
+            READ(DMA2SAD + 2, dma.channels[2].source[1]);
+            READ(DMA2DAD, dma.channels[2].destination[0]);
+            READ(DMA2DAD + 2, dma.channels[2].destination[1]);
+            READ(DMA2CNT_L, dma.channels[2].word_count);
+            READ(DMA3SAD, dma.channels[3].source[0]);
+            READ(DMA3SAD + 2, dma.channels[3].source[1]);
+            READ(DMA3DAD, dma.channels[3].destination[0]);
+            READ(DMA3DAD + 2, dma.channels[3].destination[1]);
+            READ(DMA3CNT_L, dma.channels[3].word_count);
+
+            // system
+            READ(POSTFLG, system.post_boot_flag)
+            READ(IME, system.interrupt_master_enabler)
+            READ(IE, system.interrupt_enable);
+            READ(IF, system.interrupt_request_flags);
+            READ(WAITCNT, system.waitstate_control);
 
 #undef READ
 
@@ -181,6 +241,18 @@ IoDevices::read_halfword(uint32_t address) const {
 
 void
 IoDevices::write_halfword(uint32_t address, uint16_t halfword) {
+    // set lower 16 bits for reference points (BG 2/3)
+    auto ref_low = [](uint32_t original, uint16_t low) {
+        return static_cast<int32_t>((original & 0xFFFF0000) | low);
+    };
+
+    // set upper 12 bits for reference points (BG 2/3)
+    // and sign extend
+    auto ref_high = [](uint32_t original, uint16_t high) {
+        return static_cast<int32_t>(
+          ((((high & 0xFFF) << 16) | (original & 0xFFFF)) << 4) >> 4);
+    };
+
     switch (address) {
 
 #define WRITE(name, var)                                                       \
@@ -194,82 +266,146 @@ IoDevices::write_halfword(uint32_t address, uint16_t halfword) {
         break;
 
         // lcd
-        WRITE(DISPCNT, lcd.lcd_control)
-        WRITE(DISPSTAT, lcd.general_lcd_status)
-        WRITE(BG0CNT, lcd.bg0_control)
-        WRITE(BG1CNT, lcd.bg1_control)
-        WRITE(BG2CNT, lcd.bg2_control)
-        WRITE(BG3CNT, lcd.bg3_control)
-        WRITE(BG0HOFS, lcd.bg0_x_offset)
-        WRITE(BG0VOFS, lcd.bg0_y_offset)
-        WRITE(BG1HOFS, lcd.bg1_x_offset)
-        WRITE(BG1VOFS, lcd.bg1_y_offset)
-        WRITE(BG2HOFS, lcd.bg2_x_offset)
-        WRITE(BG2VOFS, lcd.bg2_y_offset)
-        WRITE(BG3HOFS, lcd.bg3_x_offset)
-        WRITE(BG3VOFS, lcd.bg3_y_offset)
-        WRITE(BG2PA, lcd.bg2_rot_scaling_parameters[0])
-        WRITE(BG2PB, lcd.bg2_rot_scaling_parameters[1])
-        WRITE(BG2PC, lcd.bg2_rot_scaling_parameters[2])
-        WRITE(BG2PD, lcd.bg2_rot_scaling_parameters[3])
-        WRITE(BG2X_L, lcd.bg2_reference_x[0])
-        WRITE(BG2X_H, lcd.bg2_reference_x[1])
-        WRITE(BG2Y_L, lcd.bg2_reference_y[0])
-        WRITE(BG2Y_H, lcd.bg2_reference_y[1])
-        WRITE(BG3PA, lcd.bg3_rot_scaling_parameters[0])
-        WRITE(BG3PB, lcd.bg3_rot_scaling_parameters[1])
-        WRITE(BG3PC, lcd.bg3_rot_scaling_parameters[2])
-        WRITE(BG3PD, lcd.bg3_rot_scaling_parameters[3])
-        WRITE(BG3X_L, lcd.bg3_reference_x[0])
-        WRITE(BG3X_H, lcd.bg3_reference_x[1])
-        WRITE(BG3Y_L, lcd.bg3_reference_y[0])
-        WRITE(BG3Y_H, lcd.bg3_reference_y[1])
-        WRITE(WIN0H, lcd.win0_horizontal_dimensions)
-        WRITE(WIN1H, lcd.win1_horizontal_dimensions)
-        WRITE(WIN0V, lcd.win0_vertical_dimensions)
-        WRITE(WIN1V, lcd.win1_vertical_dimensions)
-        WRITE(WININ, lcd.inside_win_0_1)
-        WRITE(WINOUT, lcd.outside_win)
-        WRITE(MOSAIC, lcd.mosaic_size)
-        WRITE(BLDCNT, lcd.color_special_effects_selection)
-        WRITE(BLDALPHA, lcd.alpha_blending_coefficients)
-        WRITE(BLDY, lcd.brightness_coefficient)
+        case DISPCNT:
+            display.lcd_control.write(halfword);
+            break;
+        case DISPSTAT:
+            display.general_lcd_status.write(halfword);
+            break;
+        case BG0CNT:
+            display.bg_control[0].write(halfword);
+            break;
+        case BG1CNT:
+            display.bg_control[1].write(halfword);
+            break;
+        case BG2CNT:
+            display.bg_control[2].write(halfword);
+            break;
+        case BG3CNT:
+            display.bg_control[3].write(halfword);
+            break;
 
-        // sound
-        WRITE(SOUND1CNT_L, sound.ch1_sweep)
-        WRITE(SOUND1CNT_H, sound.ch1_duty_length_env)
-        WRITE(SOUND1CNT_X, sound.ch1_freq_control)
-        WRITE(SOUND2CNT_L, sound.ch2_duty_length_env)
-        WRITE(SOUND2CNT_H, sound.ch2_freq_control)
-        WRITE(SOUND3CNT_L, sound.ch3_stop_wave_ram_select)
-        WRITE(SOUND3CNT_H, sound.ch3_length_volume)
-        WRITE(SOUND3CNT_X, sound.ch3_freq_control)
-        WRITE(WAVE_RAM0_L, sound.ch3_wave_pattern[0]);
-        WRITE(WAVE_RAM0_H, sound.ch3_wave_pattern[1]);
-        WRITE(WAVE_RAM1_L, sound.ch3_wave_pattern[2]);
-        WRITE(WAVE_RAM1_H, sound.ch3_wave_pattern[3]);
-        WRITE(WAVE_RAM2_L, sound.ch3_wave_pattern[4]);
-        WRITE(WAVE_RAM2_H, sound.ch3_wave_pattern[5]);
-        WRITE(WAVE_RAM3_L, sound.ch3_wave_pattern[6]);
-        WRITE(WAVE_RAM3_H, sound.ch3_wave_pattern[7]);
-        WRITE(SOUND4CNT_L, sound.ch4_length_env);
-        WRITE(SOUND4CNT_H, sound.ch4_freq_control);
-        WRITE(SOUNDCNT_L, sound.ctrl_stereo_volume);
-        WRITE(SOUNDCNT_H, sound.ctrl_mixing);
-        WRITE(SOUNDCNT_X, sound.ctrl_sound_on_off);
-        WRITE(SOUNDBIAS, sound.pwm_control);
-        WRITE(FIFO_A_L, sound.fifo_a[0]);
-        WRITE(FIFO_A_H, sound.fifo_a[1]);
-        WRITE(FIFO_B_L, sound.fifo_b[0]);
-        WRITE(FIFO_B_H, sound.fifo_b[1]);
+            WRITE(BG0HOFS, display.bg0_offset.x)
+            WRITE(BG0VOFS, display.bg0_offset.y)
+            WRITE(BG1HOFS, display.bg1_offset.x)
+            WRITE(BG1VOFS, display.bg1_offset.y)
+            WRITE(BG2HOFS, display.bg2_offset.x)
+            WRITE(BG2VOFS, display.bg2_offset.y)
+            WRITE(BG3HOFS, display.bg3_offset.x)
+            WRITE(BG3VOFS, display.bg3_offset.y)
+            WRITE(BG2PA, display.bg2_rot_scale.a)
+            WRITE(BG2PB, display.bg2_rot_scale.b)
+            WRITE(BG2PC, display.bg2_rot_scale.c)
+            WRITE(BG2PD, display.bg2_rot_scale.d)
+            WRITE_2(BG2X_L,
+                    display.bg2_rot_scale.ref.x,
+                    ref_low(display.bg2_rot_scale.ref.x, halfword));
+            WRITE_2(BG2X_H,
+                    display.bg2_rot_scale.ref.x,
+                    ref_high(display.bg2_rot_scale.ref.x, halfword));
+            WRITE_2(BG2Y_L,
+                    display.bg2_rot_scale.ref.y,
+                    ref_low(display.bg2_rot_scale.ref.y, halfword));
+            WRITE_2(BG2Y_H,
+                    display.bg2_rot_scale.ref.y,
+                    ref_high(display.bg2_rot_scale.ref.y, halfword));
+            WRITE(BG3PA, display.bg3_rot_scale.a)
+            WRITE(BG3PB, display.bg3_rot_scale.b)
+            WRITE(BG3PC, display.bg3_rot_scale.c)
+            WRITE(BG3PD, display.bg3_rot_scale.d)
+            WRITE_2(BG3X_L,
+                    display.bg3_rot_scale.ref.x,
+                    ref_low(display.bg3_rot_scale.ref.x, halfword));
+            WRITE_2(BG3X_H,
+                    display.bg3_rot_scale.ref.x,
+                    ref_high(display.bg3_rot_scale.ref.x, halfword));
+            WRITE_2(BG3Y_L,
+                    display.bg3_rot_scale.ref.y,
+                    ref_low(display.bg3_rot_scale.ref.y, halfword));
+            WRITE_2(BG3Y_H,
+                    display.bg3_rot_scale.ref.y,
+                    ref_high(display.bg3_rot_scale.ref.y, halfword));
+            WRITE(WIN0H, display.win0_horizontal_dimensions)
+            WRITE(WIN1H, display.win1_horizontal_dimensions)
+            WRITE(WIN0V, display.win0_vertical_dimensions)
+            WRITE(WIN1V, display.win1_vertical_dimensions)
+            WRITE(WININ, display.inside_win_0_1)
+            WRITE(WINOUT, display.outside_win)
+            WRITE(MOSAIC, display.mosaic_size)
+            WRITE(BLDCNT, display.color_special_effects_selection)
+            WRITE(BLDALPHA, display.alpha_blending_coefficients)
+            WRITE(BLDY, display.brightness_coefficient)
 
-        // system
-        WRITE_2(POSTFLG, system.post_boot_flag, halfword & 1)
-        WRITE_2(IME, system.interrupt_master_enabler, halfword & 1)
-        WRITE(IE, system.interrupt_enable);
-        WRITE(IF, system.interrupt_request_flags);
-        WRITE(WAITCNT, system.waitstate_control);
-        WRITE_2(HALTCNT, system.low_power_mode, get_bit(halfword, 7));
+            // sound
+            WRITE(SOUND1CNT_L, sound.ch1_sweep)
+            WRITE(SOUND1CNT_H, sound.ch1_duty_length_env)
+            WRITE(SOUND1CNT_X, sound.ch1_freq_control)
+            WRITE(SOUND2CNT_L, sound.ch2_duty_length_env)
+            WRITE(SOUND2CNT_H, sound.ch2_freq_control)
+            WRITE(SOUND3CNT_L, sound.ch3_stop_wave_ram_select)
+            WRITE(SOUND3CNT_H, sound.ch3_length_volume)
+            WRITE(SOUND3CNT_X, sound.ch3_freq_control)
+            WRITE(WAVE_RAM0_L, sound.ch3_wave_pattern[0]);
+            WRITE(WAVE_RAM0_H, sound.ch3_wave_pattern[1]);
+            WRITE(WAVE_RAM1_L, sound.ch3_wave_pattern[2]);
+            WRITE(WAVE_RAM1_H, sound.ch3_wave_pattern[3]);
+            WRITE(WAVE_RAM2_L, sound.ch3_wave_pattern[4]);
+            WRITE(WAVE_RAM2_H, sound.ch3_wave_pattern[5]);
+            WRITE(WAVE_RAM3_L, sound.ch3_wave_pattern[6]);
+            WRITE(WAVE_RAM3_H, sound.ch3_wave_pattern[7]);
+            WRITE(SOUND4CNT_L, sound.ch4_length_env);
+            WRITE(SOUND4CNT_H, sound.ch4_freq_control);
+            WRITE(SOUNDCNT_L, sound.ctrl_stereo_volume);
+            WRITE(SOUNDCNT_H, sound.ctrl_mixing);
+            WRITE(SOUNDCNT_X, sound.ctrl_sound_on_off);
+            WRITE(SOUNDBIAS, sound.pwm_control);
+            WRITE(FIFO_A_L, sound.fifo_a[0]);
+            WRITE(FIFO_A_H, sound.fifo_a[1]);
+            WRITE(FIFO_B_L, sound.fifo_b[0]);
+            WRITE(FIFO_B_H, sound.fifo_b[1]);
+
+            // dma
+        case DMA0CNT_H:
+            dma.channels[0].control.write(halfword);
+            break;
+        case DMA1CNT_H:
+            dma.channels[1].control.write(halfword);
+            break;
+        case DMA2CNT_H:
+            dma.channels[2].control.write(halfword);
+            break;
+        case DMA3CNT_H:
+            dma.channels[3].control.write(halfword);
+            break;
+
+            WRITE(DMA0SAD, dma.channels[0].source[0]);
+            WRITE(DMA0SAD + 2, dma.channels[0].source[1]);
+            WRITE(DMA0DAD, dma.channels[0].destination[0]);
+            WRITE(DMA0DAD + 2, dma.channels[0].destination[1]);
+            WRITE(DMA0CNT_L, dma.channels[0].word_count);
+            WRITE(DMA1SAD, dma.channels[1].source[0]);
+            WRITE(DMA1SAD + 2, dma.channels[1].source[1]);
+            WRITE(DMA1DAD, dma.channels[1].destination[0]);
+            WRITE(DMA1DAD + 2, dma.channels[1].destination[1]);
+            WRITE(DMA1CNT_L, dma.channels[1].word_count);
+            WRITE(DMA2SAD, dma.channels[2].source[0]);
+            WRITE(DMA2SAD + 2, dma.channels[2].source[1]);
+            WRITE(DMA2DAD, dma.channels[2].destination[0]);
+            WRITE(DMA2DAD + 2, dma.channels[2].destination[1]);
+            WRITE(DMA2CNT_L, dma.channels[2].word_count);
+            WRITE(DMA3SAD, dma.channels[3].source[0]);
+            WRITE(DMA3SAD + 2, dma.channels[3].source[1]);
+            WRITE(DMA3DAD, dma.channels[3].destination[0]);
+            WRITE(DMA3DAD + 2, dma.channels[3].destination[1]);
+            WRITE(DMA3CNT_L, dma.channels[3].word_count);
+
+            // system
+            WRITE_2(POSTFLG, system.post_boot_flag, halfword & 1)
+            WRITE_2(IME, system.interrupt_master_enabler, halfword & 1)
+            WRITE(IE, system.interrupt_enable);
+            WRITE(IF, system.interrupt_request_flags);
+            WRITE(WAITCNT, system.waitstate_control);
+            WRITE_2(HALTCNT, system.low_power_mode, get_bit(halfword, 7));
 
 #undef WRITE
 #undef WRITE_2
@@ -279,4 +415,5 @@ IoDevices::write_halfword(uint32_t address, uint16_t halfword) {
     }
     return;
 }
+
 }

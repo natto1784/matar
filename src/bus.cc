@@ -5,13 +5,32 @@
 
 namespace matar {
 
+// Constants
+#define MEMORY(AREA, start)                                                    \
+    static constexpr uint32_t AREA##_START = start;                            \
+    static constexpr uint8_t AREA##_REGION = (AREA##_START >> 24) & 0xFF;
+
+MEMORY(BIOS, 0x0000000);
+MEMORY(BOARD_WRAM, 0x2000000);
+MEMORY(CHIP_WRAM, 0x3000000);
+MEMORY(PRAM, display::PRAM_START);
+MEMORY(VRAM, display::VRAM_START);
+MEMORY(OAM, display::OAM_START);
+MEMORY(ROM_0, 0x8000000);
+MEMORY(ROM_1, 0xA000000);
+MEMORY(ROM_2, 0xC000000);
+static constexpr uint32_t IO_START = 0x4000000;
+static constexpr uint32_t IO_END   = 0x40003FE;
+
+#undef MEMORY
+
 Bus::Bus(Private,
          std::array<uint8_t, BIOS_SIZE>&& bios,
          std::vector<uint8_t>&& rom)
   : cycle_map(init_cycle_count())
   , bios(std::move(bios))
   , rom(std::move(rom)) {
-    std::string bios_hash = crypto::sha256(this->bios);
+    std::string bios_hash = crypto::sha256(this->bios.data());
     static constexpr std::string_view expected_hash =
       "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570";
 
@@ -69,17 +88,16 @@ Bus::init_cycle_count() {
     map[IO_REGION]        = { 1, 1, 1, 1 };
     map[OAM_REGION]       = { 1, 1, 1, 1 };
     */
-    map[3]                  = { 1, 1, 1, 1 };
-    map[BOARD_WRAM_REGION]  = { .n16 = 3, .n32 = 6, .s16 = 3, .s32 = 6 };
-    map[PALETTE_RAM_REGION] = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
-    map[VRAM_REGION]        = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
+    map[BOARD_WRAM_REGION] = { .n16 = 3, .n32 = 6, .s16 = 3, .s32 = 6 };
+    map[PRAM_REGION]       = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
+    map[VRAM_REGION]       = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
     // TODO: GamePak access cycles
 
     return map;
 }
 
 template<typename T>
-std::optional<T>
+T
 Bus::read(uint32_t address) const {
 
     // this is cleaned than std::enable_if
@@ -99,12 +117,11 @@ Bus::read(uint32_t address) const {
         if (i > area.size() - N)                                               \
             break;                                                             \
         if constexpr (std::is_same_v<T, uint8_t>)                              \
-            return area[i];                                                    \
+            return area.read_byte(i);                                          \
         else if constexpr (std::is_same_v<T, uint16_t>)                        \
-            return area[i] | area[i + 1] << 8;                                 \
+            return area.read_halfword(i);                                      \
         else if constexpr (std::is_same_v<T, uint32_t>)                        \
-            return area[i] | area[i + 1] << 8 | area[i + 2] << 16 |            \
-                   area[i + 3] << 24;                                          \
+            return area.read_word(i);                                          \
     }
 
 #define MATCHES_PAK(AREA, area)                                                \
@@ -114,9 +131,9 @@ Bus::read(uint32_t address) const {
         MATCHES(BIOS, bios)
         MATCHES(BOARD_WRAM, board_wram)
         MATCHES(CHIP_WRAM, chip_wram)
-        MATCHES(PALETTE_RAM, palette_ram)
-        MATCHES(VRAM, vram)
-        MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
+        MATCHES(PRAM, io->display.pram)
+        MATCHES(VRAM, io->display.vram)
+        MATCHES(OAM, io->display.oam)
 
         MATCHES_PAK(ROM_0, rom)
         MATCHES_PAK(ROM_1, rom)
@@ -125,8 +142,14 @@ Bus::read(uint32_t address) const {
 #undef MATCHES
     }
 
-    glogger.error("Invalid memory region read");
-    return {};
+    glogger.error("invalid memory region read at {:08x}", address);
+
+    if constexpr (std::is_same_v<T, uint8_t>)
+        return 0xFF;
+    else if constexpr (std::is_same_v<T, uint16_t>)
+        return 0xFFFF;
+    else if constexpr (std::is_same_v<T, uint32_t>)
+        return 0xFFFFFFFF;
 }
 
 template<typename T>
@@ -140,36 +163,32 @@ Bus::write(uint32_t address, T value) {
                       : std::is_same_v<T, uint16_t> ? 2
                       : std::is_same_v<T, uint32_t> ? 4
                                                     : 0;
+
     switch (address >> 24 & 0xF) {
 #define MATCHES(AREA, area)                                                    \
     case AREA##_REGION: {                                                      \
         uint32_t i = address - AREA##_START;                                   \
         if (i > area.size() - N)                                               \
             break;                                                             \
-        if constexpr (std::is_same_v<T, uint8_t>) {                            \
-            area[i] = value;                                                   \
-        } else if constexpr (std::is_same_v<T, uint16_t>) {                    \
-            area[i]     = value & 0xFF;                                        \
-            area[i + 1] = value >> 8 & 0xFF;                                   \
-        } else if constexpr (std::is_same_v<T, uint32_t>) {                    \
-            area[i]     = value & 0xFF;                                        \
-            area[i + 1] = value >> 8 & 0xFF;                                   \
-            area[i + 2] = value >> 16 & 0xFF;                                  \
-            area[i + 3] = value >> 24 & 0xFF;                                  \
-        }                                                                      \
+        if constexpr (std::is_same_v<T, uint8_t>)                              \
+            area.write_byte(i, value);                                         \
+        else if constexpr (std::is_same_v<T, uint16_t>)                        \
+            area.write_halfword(i, value);                                     \
+        else if constexpr (std::is_same_v<T, uint32_t>)                        \
+            area.write_word(i, value);                                         \
         return;                                                                \
     }
 
         MATCHES(BOARD_WRAM, board_wram)
         MATCHES(CHIP_WRAM, chip_wram)
-        MATCHES(PALETTE_RAM, palette_ram)
-        MATCHES(VRAM, vram)
-        MATCHES(OAM_OBJ_ATTR, oam_obj_attr)
+        MATCHES(PRAM, io->display.pram)
+        MATCHES(VRAM, io->display.vram)
+        MATCHES(OAM, io->display.oam)
 
 #undef MATCHES
     }
 
-    glogger.error("Invalid memory region written");
+    glogger.error("invalid memory region written at {:08x}", address);
 }
 
 uint8_t
@@ -177,7 +196,7 @@ Bus::read_byte(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_byte(address);
 
-    return read<uint8_t>(address).value_or(0xFF);
+    return read<uint8_t>(address);
 }
 
 void
@@ -198,7 +217,7 @@ Bus::read_halfword(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_halfword(address);
 
-    return read<uint16_t>(address).value_or(0xFFFF);
+    return read<uint16_t>(address);
 }
 
 void
@@ -222,7 +241,7 @@ Bus::read_word(uint32_t address) {
     if (address >= IO_START && address <= IO_END)
         return io->read_word(address);
 
-    return read<uint32_t>(address).value_or(0xFFFFFFFF);
+    return read<uint32_t>(address);
 }
 
 void

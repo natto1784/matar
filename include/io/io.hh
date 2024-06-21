@@ -1,11 +1,14 @@
 #pragma once
-#include "lcd.hh"
+
+#include "display/display.hh"
+#include "dma.hh"
 #include "sound.hh"
 #include <cstdint>
 #include <memory>
 
 namespace matar {
-class Bus;
+class Bus; // forward declaration
+
 class IoDevices {
   public:
     IoDevices(std::weak_ptr<Bus>);
@@ -30,9 +33,11 @@ class IoDevices {
         bool low_power_mode;
     } system = {};
 
-    struct lcd lcd     = {};
-    struct sound sound = {};
+    display::Display display = {};
+    Sound sound              = {};
+    Dma dma                  = {};
 
     std::weak_ptr<Bus> bus;
+    friend class Bus;
 };
 }
