@@ -1,67 +1,35 @@
 #include "bus.hh"
+#include "cpu/cpu.hh"
 #include "io/io.hh"
+#include "io/system/registers.hh"
 #include "util/crypto.hh"
 #include "util/log.hh"
+#include <iostream>
 
 namespace matar {
 
 // Constants
-#define MEMORY(AREA, start)                                                    \
-    static constexpr uint32_t AREA##_START = start;                            \
-    static constexpr uint8_t AREA##_REGION = (AREA##_START >> 24) & 0xFF;
+static constexpr uint32_t BIOS_START       = 0x0000000;
+static constexpr uint32_t BOARD_WRAM_START = 0x2000000;
+static constexpr uint32_t CHIP_WRAM_START  = 0x3000000;
+static constexpr uint32_t PRAM_START       = 0x5000000;
+static constexpr uint32_t VRAM_START       = 0x6000000;
+static constexpr uint32_t OAM_START        = 0x7000000;
+static constexpr uint32_t ROM_0_START      = 0x8000000;
+static constexpr uint32_t ROM_1_START      = 0xA000000;
+static constexpr uint32_t ROM_2_START      = 0xC000000;
+static constexpr uint32_t IO_START         = 0x4000000;
+// static constexpr uint32_t IO_END           = 0x40003FE;
+static constexpr uint32_t SRAM_START = 0xE000000;
 
-MEMORY(BIOS, 0x0000000);
-MEMORY(BOARD_WRAM, 0x2000000);
-MEMORY(CHIP_WRAM, 0x3000000);
-MEMORY(PRAM, display::PRAM_START);
-MEMORY(VRAM, display::VRAM_START);
-MEMORY(OAM, display::OAM_START);
-MEMORY(ROM_0, 0x8000000);
-MEMORY(ROM_1, 0xA000000);
-MEMORY(ROM_2, 0xC000000);
-static constexpr uint32_t IO_START = 0x4000000;
-static constexpr uint32_t IO_END   = 0x40003FE;
+static constexpr auto
+make_cycle_map() {
+    std::array<CycleCount, 0x10> map;
 
-#undef MEMORY
-
-Bus::Bus(Private,
-         std::array<uint8_t, BIOS_SIZE>&& bios,
-         std::vector<uint8_t>&& rom)
-  : cycle_map(init_cycle_count())
-  , bios(std::move(bios))
-  , rom(std::move(rom)) {
-    std::string bios_hash = crypto::sha256(this->bios.data());
-    static constexpr std::string_view expected_hash =
-      "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570";
-
-    if (bios_hash != expected_hash) {
-        glogger.warn("BIOS hash failed to match, run at your own risk"
-                     "\nExpected : {} "
-                     "\nGot      : {}",
-                     expected_hash,
-                     bios_hash);
-    }
-
-    parse_header();
-
-    glogger.info("Memory successfully initialised");
-    glogger.info("Cartridge Title: {}", header.title);
-};
-
-std::shared_ptr<Bus>
-Bus::init(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom) {
-    auto self =
-      std::make_shared<Bus>(Private(), std::move(bios), std::move(rom));
-    self->io = std::make_unique<IoDevices>(self);
-    return self;
-}
-
-constexpr decltype(Bus::cycle_map)
-Bus::init_cycle_count() {
     /*
       Region        Bus   Read      Write     Cycles
       BIOS ROM      32    8/16/32   -         1/1/1
-      Work RAM 32K  32    8/16/32   8/16/32   1/1/1
+      Work RAM 32K  32    8/16/32   8/16/32   1/1/
       I/O           32    8/16/32   8/16/32   1/1/1
       OAM           32    8/16/32   16/32     1/1/1 *
       Work RAM 256K 16    8/16/32   8/16/32   3/3/6 **
@@ -79,182 +47,614 @@ Bus::init_cycle_count() {
       One cycle equals approx. 59.59ns (ie. 16.78MHz clock).
     */
 
-    decltype(cycle_map) map;
     map.fill({ 1, 1, 1, 1 });
 
-    /* used fill instead of this
-    map[BIOS_REGION]      = { 1, 1, 1, 1 };
-    map[CHIP_WRAM_REGION] = { 1, 1, 1, 1 };
-    map[IO_REGION]        = { 1, 1, 1, 1 };
-    map[OAM_REGION]       = { 1, 1, 1, 1 };
-    */
-    map[BOARD_WRAM_REGION] = { .n16 = 3, .n32 = 6, .s16 = 3, .s32 = 6 };
-    map[PRAM_REGION]       = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
-    map[VRAM_REGION]       = { .n16 = 1, .n32 = 2, .s16 = 1, .s32 = 2 };
-    // TODO: GamePak access cycles
+    map[BOARD_WRAM_START >> 24 & 0xF] = CycleCount{ 3, 6, 3, 6 };
+    map[OAM_START >> 24 & 0xF]        = CycleCount{ 1, 2, 1, 2 };
+    map[PRAM_START >> 24 & 0xF]       = CycleCount{ 1, 2, 1, 2 };
+    map[VRAM_START >> 24 & 0xF]       = CycleCount{ 1, 2, 1, 2 };
 
     return map;
 }
 
-template<typename T>
-T
-Bus::read(uint32_t address) const {
+Bus::Bus(std::array<uint8_t, BIOS_SIZE>&& bios, std::vector<uint8_t>&& rom)
+  : cpu(nullptr)
+  , io(*this, scheduler)
+  , bios(std::move(bios))
+  , rom(std::move(rom)) {
+    std::string bios_hash = crypto::sha256(this->bios.data());
+    static constexpr std::string_view expected_hash =
+      "fd2547724b505f487e6dcb29ec2ecff3af35a841a77ab2e85fd87350abd36570";
 
-    // this is cleaned than std::enable_if
-    static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
-                    std::is_same_v<T, uint32_t>,
-                  "Can only read uint8_t, uin16_t or uint32_t");
-
-    constexpr int N = std::is_same_v<T, uint8_t>    ? 1
-                      : std::is_same_v<T, uint16_t> ? 2
-                      : std::is_same_v<T, uint32_t> ? 4
-                                                    : 0;
-
-    switch (address >> 24 & 0xF) {
-#define MATCHES(AREA, area)                                                    \
-    case AREA##_REGION: {                                                      \
-        uint32_t i = address - AREA##_START;                                   \
-        if (i > area.size() - N)                                               \
-            break;                                                             \
-        if constexpr (std::is_same_v<T, uint8_t>)                              \
-            return area.read_byte(i);                                          \
-        else if constexpr (std::is_same_v<T, uint16_t>)                        \
-            return area.read_halfword(i);                                      \
-        else if constexpr (std::is_same_v<T, uint32_t>)                        \
-            return area.read_word(i);                                          \
+    if (bios_hash != expected_hash) {
+        glogger.warn("BIOS hash failed to match, run at your own risk"
+                     "\nExpected : {} "
+                     "\nGot      : {}",
+                     expected_hash,
+                     bios_hash);
     }
 
-#define MATCHES_PAK(AREA, area)                                                \
-    case AREA##_REGION + 1:                                                    \
-        MATCHES(AREA, area)
+    parse_header();
 
-        MATCHES(BIOS, bios)
-        MATCHES(BOARD_WRAM, board_wram)
-        MATCHES(CHIP_WRAM, chip_wram)
-        MATCHES(PRAM, io->display.pram)
-        MATCHES(VRAM, io->display.vram)
-        MATCHES(OAM, io->display.oam)
+    cycle_map = make_cycle_map();
 
-        MATCHES_PAK(ROM_0, rom)
-        MATCHES_PAK(ROM_1, rom)
-        MATCHES_PAK(ROM_2, rom)
-#undef MATCHES_PAK
-#undef MATCHES
+    glogger.info("Memory successfully initialised");
+    glogger.info("Cartridge Title: {}", header.title);
+};
+
+void
+Bus::update_cycle_map(WaitstateControl waitcnt) {
+    static constexpr std::array<int, 4> WAITSTATE_X_FST = { 4, 3, 2, 8 };
+    static constexpr std::array<int, 2> WAITSTATE_0_SND = { 2, 1 };
+    static constexpr std::array<int, 2> WAITSTATE_1_SND = { 4, 1 };
+    static constexpr std::array<int, 2> WAITSTATE_2_SND = { 8, 1 };
+
+    auto& rom0   = cycle_map[ROM_0_START >> 24 & 0xF];
+    auto& rom0_1 = cycle_map[(ROM_0_START >> 24 & 0xF) + 1];
+    auto& rom1   = cycle_map[ROM_1_START >> 24 & 0xF];
+    auto& rom1_1 = cycle_map[(ROM_1_START >> 24 & 0xF) + 1];
+    auto& rom2   = cycle_map[ROM_2_START >> 24 & 0xF];
+    auto& rom2_1 = cycle_map[(ROM_2_START >> 24 & 0xF) + 1];
+    auto& sram   = cycle_map[SRAM_START >> 24 & 0xF];
+
+    auto reg = waitcnt.value;
+
+    /* SRAM can only be accessed via 8 bit bus */
+    sram.n16 = sram.n32 = sram.s16 = sram.s32 =
+      WAITSTATE_X_FST[reg.sram_wait_control];
+
+    rom0.n16 = 1 + WAITSTATE_X_FST[reg.wait_state_0_first];
+    rom0.s16 = 1 + WAITSTATE_0_SND[reg.wait_state_0_second];
+    rom0.n32 = rom0.n16 + rom0.s16;
+    rom0.s32 = rom0.s16 + rom0.s16;
+    rom0_1   = rom0;
+
+    rom1.n16 = 1 + WAITSTATE_X_FST[reg.wait_state_1_first];
+    rom1.s16 = 1 + WAITSTATE_1_SND[reg.wait_state_1_second];
+    rom1.n32 = rom1.n16 + rom1.s16;
+    rom1.s32 = rom1.s16 + rom1.s16;
+    rom1_1   = rom1;
+
+    rom2.n16 = 1 + WAITSTATE_X_FST[reg.wait_state_2_first];
+    rom2.s16 = 1 + WAITSTATE_2_SND[reg.wait_state_2_second];
+    rom2.n32 = rom2.n16 + rom2.s16;
+    rom2.s32 = rom2.s16 + rom2.s16;
+    rom2_1   = rom2;
+}
+
+void
+Bus::step() {
+    uint64_t current = get_cycles();
+
+    while (!scheduler.empty() && scheduler.top().cycles <= current) {
+        auto event = scheduler.top();
+        io.scheduler_event(event.type, event.cycles);
+        scheduler.pop();
     }
+}
 
-    glogger.error("invalid memory region read at {:08x}", address);
+void
+Bus::run(uint64_t cyc) {
+    while (get_cycles() < cyc) {
+        if (!scheduler.empty()) {
+            // glogger.info("cycling for {} cycles",
+            // scheduler.top().cycles - get_cycles());
 
-    if constexpr (std::is_same_v<T, uint8_t>)
-        return 0xFF;
-    else if constexpr (std::is_same_v<T, uint16_t>)
-        return 0xFFFF;
-    else if constexpr (std::is_same_v<T, uint32_t>)
-        return 0xFFFFFFFF;
+            while (get_cycles() < scheduler.top().cycles) {
+                if (io.any_is_interrupt_pending()) {
+                    cpu->irq();
+                }
+
+                cpu->step();
+            }
+
+            while (!scheduler.empty() &&
+                   scheduler.top().cycles <= get_cycles()) {
+                auto event = scheduler.top();
+                io.scheduler_event(event.type, event.cycles);
+                scheduler.pop();
+            }
+        } else {
+            if (io.any_is_interrupt_pending()) {
+                cpu->irq();
+            }
+
+            cpu->step();
+        }
+    }
 }
 
 template<typename T>
-void
-Bus::write(uint32_t address, T value) {
-    static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
-                    std::is_same_v<T, uint32_t>,
-                  "Can only write uint8_t, uin16_t or uint32_t");
+T
+Bus::read_illegal(uint32_t address) const {
+    uint32_t value;
+    uint32_t decoded;
+    uint32_t prefetched;
+    uint32_t pc;
 
-    constexpr int N = std::is_same_v<T, uint8_t>    ? 1
-                      : std::is_same_v<T, uint16_t> ? 2
-                      : std::is_same_v<T, uint32_t> ? 4
-                                                    : 0;
-
-    switch (address >> 24 & 0xF) {
-#define MATCHES(AREA, area)                                                    \
-    case AREA##_REGION: {                                                      \
-        uint32_t i = address - AREA##_START;                                   \
-        if (i > area.size() - N)                                               \
-            break;                                                             \
-        if constexpr (std::is_same_v<T, uint8_t>)                              \
-            area.write_byte(i, value);                                         \
-        else if constexpr (std::is_same_v<T, uint16_t>)                        \
-            area.write_halfword(i, value);                                     \
-        else if constexpr (std::is_same_v<T, uint32_t>)                        \
-            area.write_word(i, value);                                         \
-        return;                                                                \
+    if (cpu == nullptr) {
+        glogger.error("cpu is null, make sure to assign it to the Bus");
+        std::abort();
     }
 
-        MATCHES(BOARD_WRAM, board_wram)
-        MATCHES(CHIP_WRAM, chip_wram)
-        MATCHES(PRAM, io->display.pram)
-        MATCHES(VRAM, io->display.vram)
-        MATCHES(OAM, io->display.oam)
+    decoded    = cpu->opcode0() & 0xFFFF;
+    prefetched = cpu->opcode1() & 0xFFFF;
+    pc         = cpu->program_counter();
 
-#undef MATCHES
+    if (cpu->state() == State::Arm) {
+        return static_cast<T>(cpu->opcode1());
+    } else {
+        switch (pc >> 24 & 0xF) {
+            case BIOS_START >> 24 & 0xF:
+            case OAM_START >> 24 & 0xF: {
+                value = (prefetched << 16 | decoded);
+                break;
+            }
+            case CHIP_WRAM_START >> 24 & 0xF: {
+                if (pc & 0b11) {
+                    /* unaligned */
+                    value = (prefetched << 16 | decoded);
+                } else {
+                    /* aligned */
+                    value = (decoded << 16 | prefetched);
+                }
+                break;
+            }
+            default: {
+                value = (prefetched << 16 | prefetched);
+            }
+        }
     }
 
-    glogger.error("invalid memory region written at {:08x}", address);
+    return static_cast<T>(value >> ((address & 0b11) << 3));
 }
 
 uint8_t
-Bus::read_byte(uint32_t address) {
-    if (address >= IO_START && address <= IO_END)
-        return io->read_byte(address);
+Bus::read_byte(uint32_t address, CpuAccess access) {
+    auto cc = cycle_map[(address >> 24) & 0xF];
+    scheduler.add_cycles(access == CpuAccess::Sequential ? cc.s16 : cc.n16);
 
-    return read<uint8_t>(address);
-}
+    switch ((address >> 24) & 0xF) {
+        case (BIOS_START >> 24) & 0xF: {
+            uint32_t offset = address - BIOS_START;
+            if (offset >= bios.size()) {
+                return read_illegal<uint8_t>(address);
+            } else if (cpu->program_counter() >= bios.size()) {
+                return last_bios_word;
+            }
 
-void
-Bus::write_byte(uint32_t address, uint8_t byte) {
-    if (address >= IO_START && address <= IO_END) {
-        io->write_byte(address, byte);
-        return;
+            last_bios_word = bios.read_byte(offset);
+            return last_bios_word;
+        }
+
+        case (BOARD_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (board_wram.size() - 1);
+
+            return board_wram.read_byte(offset);
+        }
+
+        case (CHIP_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (chip_wram.size() - 1);
+
+            return chip_wram.read_byte(offset);
+        }
+
+        case (IO_START >> 24) & 0xF: {
+            if ((address & 0xff0800) != 0) {
+                address &= ~0xff0000;
+            }
+            return io.read_byte(address);
+        }
+
+        case (PRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.pram().size() - 1);
+
+            return io.pram().read_byte(offset);
+        }
+
+        case (VRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (128 * 1024 - 1);
+
+            if (offset >= 96 * 1024) {
+                offset -= 32 * 1024;
+            }
+
+            return io.vram().read_byte(offset);
+        }
+
+        case (OAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.oam().size() - 1);
+
+            return io.oam().read_byte(offset);
+        }
+
+        case (ROM_0_START >> 24) & 0xF:
+        case ((ROM_0_START >> 24) & 0xF) + 1:
+        case (ROM_1_START >> 24) & 0xF:
+        case ((ROM_1_START >> 24) & 0xF) + 1:
+        case (ROM_2_START >> 24) & 0xF:
+        case ((ROM_2_START >> 24) & 0xF) + 1: {
+            uint32_t offset = address & (32 * 1024 * 1024 - 1);
+
+            if (offset >= rom.size()) {
+                glogger.error("invalid ROM region read at {:08x}", address);
+                return read_illegal<uint8_t>(address);
+            }
+
+            return rom.read_byte(offset);
+        }
+
+        default:
+            return read_illegal<uint8_t>(address);
     }
-
-    write<uint8_t>(address, byte);
 }
 
 uint16_t
-Bus::read_halfword(uint32_t address) {
-    if (address & 0b01)
-        glogger.warn("Reading a non aligned halfword address");
+Bus::read_halfword(uint32_t address, CpuAccess access) {
+    auto cc = cycle_map[(address >> 24) & 0xF];
+    scheduler.add_cycles(access == CpuAccess::Sequential ? cc.s16 : cc.n16);
 
-    if (address >= IO_START && address <= IO_END)
-        return io->read_halfword(address);
+    switch ((address >> 24) & 0xF) {
+        case (BIOS_START >> 24) & 0xF: {
+            uint32_t offset = address - BIOS_START;
+            if (offset >= bios.size()) {
+                return read_illegal<uint8_t>(address);
+            } else if (cpu->program_counter() >= bios.size()) {
+                return last_bios_word;
+            }
 
-    return read<uint16_t>(address);
-}
+            last_bios_word = bios.read_halfword(offset);
+            return last_bios_word;
+        }
 
-void
-Bus::write_halfword(uint32_t address, uint16_t halfword) {
-    if (address & 0b01)
-        glogger.warn("Writing to a non aligned halfword address");
+        case (BOARD_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (board_wram.size() - 1);
 
-    if (address >= IO_START && address <= IO_END) {
-        io->write_halfword(address, halfword);
-        return;
+            return board_wram.read_halfword(offset);
+        }
+
+        case (CHIP_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (chip_wram.size() - 1);
+
+            return chip_wram.read_halfword(offset);
+        }
+
+        case (IO_START >> 24) & 0xF: {
+            if ((address & 0xff0800) != 0) {
+                address &= ~0xff0000;
+            }
+            return io.read_halfword(address);
+        }
+
+        case (PRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.pram().size() - 1);
+
+            return io.pram().read_halfword(offset);
+        }
+
+        case (VRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (128 * 1024 - 1);
+
+            if (offset >= 96 * 1024) {
+                offset -= 32 * 1024;
+            }
+
+            return io.vram().read_halfword(offset);
+        }
+
+        case (OAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.oam().size() - 1);
+
+            return io.oam().read_halfword(offset);
+        }
+
+        case (ROM_0_START >> 24) & 0xF:
+        case ((ROM_0_START >> 24) & 0xF) + 1:
+        case (ROM_1_START >> 24) & 0xF:
+        case ((ROM_1_START >> 24) & 0xF) + 1:
+        case (ROM_2_START >> 24) & 0xF:
+        case ((ROM_2_START >> 24) & 0xF) + 1: {
+            uint32_t offset = address & (32 * 1024 * 1024 - 1);
+
+            if (offset >= rom.size()) {
+                glogger.error("invalid ROM region read at {:08x}", address);
+                return read_illegal<uint8_t>(address);
+            }
+
+            return rom.read_halfword(offset);
+        }
+
+        default:
+            return read_illegal<uint8_t>(address);
     }
-
-    write<uint16_t>(address, halfword);
 }
 
 uint32_t
-Bus::read_word(uint32_t address) {
-    if (address & 0b11)
-        glogger.warn("Reading a non aligned word address");
+Bus::read_word(uint32_t address, CpuAccess access) {
+    auto cc = cycle_map[(address >> 24) & 0xF];
+    scheduler.add_cycles(access == CpuAccess::Sequential ? cc.s32 : cc.n32);
 
-    if (address >= IO_START && address <= IO_END)
-        return io->read_word(address);
+    switch ((address >> 24) & 0xF) {
+        case (BIOS_START >> 24) & 0xF: {
+            uint32_t offset = address - BIOS_START;
+            if (offset >= bios.size()) {
+                return read_illegal<uint8_t>(address);
+            } else if (cpu->program_counter() >= bios.size()) {
+                return last_bios_word;
+            }
 
-    return read<uint32_t>(address);
+            last_bios_word = bios.read_word(offset);
+            return last_bios_word;
+        }
+
+        case (BOARD_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (board_wram.size() - 1);
+
+            return board_wram.read_word(offset);
+        }
+
+        case (CHIP_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (chip_wram.size() - 1);
+
+            return chip_wram.read_word(offset);
+        }
+
+        case (IO_START >> 24) & 0xF: {
+            if ((address & 0xff0800) != 0) {
+                address &= ~0xff0000;
+            }
+            return io.read_word(address);
+        }
+
+        case (PRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.pram().size() - 1);
+
+            return io.pram().read_word(offset);
+        }
+
+        case (VRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (128 * 1024 - 1);
+
+            if (offset >= 96 * 1024) {
+                offset -= 32 * 1024;
+            }
+
+            return io.vram().read_word(offset);
+        }
+
+        case (OAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.oam().size() - 1);
+
+            return io.oam().read_word(offset);
+        }
+
+        case (ROM_0_START >> 24) & 0xF:
+        case ((ROM_0_START >> 24) & 0xF) + 1:
+        case (ROM_1_START >> 24) & 0xF:
+        case ((ROM_1_START >> 24) & 0xF) + 1:
+        case (ROM_2_START >> 24) & 0xF:
+        case ((ROM_2_START >> 24) & 0xF) + 1: {
+            uint32_t offset = address & (32 * 1024 * 1024 - 1);
+
+            if (offset >= rom.size()) {
+                glogger.error("invalid ROM region read at {:08x}", address);
+                return read_illegal<uint8_t>(address);
+            }
+
+            return rom.read_word(offset);
+        }
+
+        default:
+            return read_illegal<uint8_t>(address);
+    }
 }
 
 void
-Bus::write_word(uint32_t address, uint32_t word) {
-    if (address & 0b11)
-        glogger.warn("Writing to a non aligned word address");
+Bus::write_byte(uint32_t address, uint8_t byte, CpuAccess access) {
+    auto cc = cycle_map[(address >> 24) & 0xF];
+    scheduler.add_cycles(access == CpuAccess::Sequential ? cc.s16 : cc.n16);
 
-    if (address >= IO_START && address <= IO_END) {
-        io->write_word(address, word);
-        return;
+    switch ((address >> 24) & 0xF) {
+        case (BOARD_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (board_wram.size() - 1);
+
+            board_wram.write_byte(offset, byte);
+            break;
+        }
+
+        case (CHIP_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (chip_wram.size() - 1);
+
+            chip_wram.write_byte(offset, byte);
+            break;
+        }
+
+        case (IO_START >> 24) & 0xF: {
+            if ((address & 0xff0800) != 0) {
+                address &= ~0xff0000;
+            }
+
+            io.write_byte(address, byte);
+            break;
+        }
+
+        case (VRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (128 * 1024 - 1);
+
+            if (offset >= 96 * 1024) {
+                offset -= 32 * 1024;
+            }
+
+            if (offset >= io.obj_offset()) {
+                break;
+            }
+
+            io.vram().write_halfword(offset & ~1,
+                                     static_cast<uint16_t>(byte) * 0x101);
+            break;
+        }
+
+        case (PRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.pram().size() - 1);
+
+            io.pram().write_halfword(offset & ~1,
+                                     static_cast<uint16_t>(byte) * 0x101);
+            break;
+        }
+
+        default:
+            glogger.error("invalid write {:08x} : {:02x}", address, byte);
     }
+}
 
-    write<uint32_t>(address, word);
+void
+Bus::write_halfword(uint32_t address, uint16_t halfword, CpuAccess access) {
+    auto cc = cycle_map[(address >> 24) & 0xF];
+    scheduler.add_cycles(access == CpuAccess::Sequential ? cc.s16 : cc.n16);
+
+    switch ((address >> 24) & 0xF) {
+        case (BOARD_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (board_wram.size() - 1);
+
+            board_wram.write_halfword(offset, halfword);
+            break;
+        }
+
+        case (CHIP_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (chip_wram.size() - 1);
+
+            chip_wram.write_halfword(offset, halfword);
+            break;
+        }
+
+        case (IO_START >> 24) & 0xF: {
+            if ((address & 0xff0800) != 0) {
+                address &= ~0xff0000;
+            }
+
+            io.write_halfword(address, halfword);
+            break;
+        }
+
+        case (PRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.pram().size() - 1);
+
+            io.pram().write_halfword(offset, halfword);
+            break;
+        }
+
+        case (VRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (128 * 1024 - 1);
+
+            if (offset >= 96 * 1024) {
+                offset -= 32 * 1024;
+            }
+
+            io.vram().write_halfword(offset, halfword);
+            break;
+        }
+
+        case (OAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.oam().size() - 1);
+
+            io.oam().write_halfword(offset, halfword);
+            break;
+        }
+
+        case (ROM_0_START >> 24) & 0xF:
+        case ((ROM_0_START >> 24) & 0xF) + 1:
+        case (ROM_1_START >> 24) & 0xF:
+        case ((ROM_1_START >> 24) & 0xF) + 1:
+        case (ROM_2_START >> 24) & 0xF:
+        case ((ROM_2_START >> 24) & 0xF) + 1: {
+            uint32_t offset = address & (32 * 1024 * 1024 - 1);
+
+            if (offset >= rom.size()) {
+                glogger.error("invalid ROM region written at {:08x}", address);
+            }
+
+            rom.write_halfword(offset, halfword);
+            break;
+        }
+
+        default:
+            glogger.error("invalid write {:08x} : {:04x}", address, halfword);
+    }
+}
+
+void
+Bus::write_word(uint32_t address, uint32_t word, CpuAccess access) {
+    auto cc = cycle_map[(address >> 24) & 0xF];
+    scheduler.add_cycles(access == CpuAccess::Sequential ? cc.s32 : cc.n32);
+
+    switch ((address >> 24) & 0xF) {
+        case (BOARD_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (board_wram.size() - 1);
+
+            board_wram.write_word(offset, word);
+            break;
+        }
+
+        case (CHIP_WRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (chip_wram.size() - 1);
+
+            chip_wram.write_word(offset, word);
+            break;
+        }
+
+        case (IO_START >> 24) & 0xF: {
+            if ((address & 0x800) == 0x800) {
+                address &= ~0xff0000;
+            }
+
+            io.write_word(address, word);
+            break;
+        }
+
+        case (PRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.pram().size() - 1);
+
+            io.pram().write_word(offset, word);
+            break;
+        }
+
+        case (VRAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (128 * 1024 - 1);
+
+            if (offset >= 96 * 1024) {
+                offset -= 32 * 1024;
+            }
+
+            io.vram().write_word(offset, word);
+            break;
+        }
+
+        case (OAM_START >> 24) & 0xF: {
+            uint32_t offset = address & (io.oam().size() - 1);
+
+            io.oam().write_word(offset, word);
+            break;
+        }
+
+        case (ROM_0_START >> 24) & 0xF:
+        case ((ROM_0_START >> 24) & 0xF) + 1:
+        case (ROM_1_START >> 24) & 0xF:
+        case ((ROM_1_START >> 24) & 0xF) + 1:
+        case (ROM_2_START >> 24) & 0xF:
+        case ((ROM_2_START >> 24) & 0xF) + 1: {
+            uint32_t offset = address & (32 * 1024 * 1024 - 1);
+
+            if (offset >= rom.size()) {
+                glogger.error("invalid ROM region written at {:08x}", address);
+            }
+
+            rom.write_word(offset, word);
+            break;
+        }
+
+        default:
+            glogger.error("invalid write {:08x} : {:04x}", address, word);
+    }
 }
 
 void
