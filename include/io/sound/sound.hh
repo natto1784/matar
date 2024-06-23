@@ -1,66 +1,106 @@
+#pragma once
+
+#include "io/dma/dma.hh"
+#include "io/sound/buffer.hh"
+#include "io/sound/resampler.hh"
+#include "scheduler.hh"
 #include <cstdint>
+#include <io/sound/registers.hh>
 
-// NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
+namespace matar {
+namespace sound {
 
-/*
-  4000060h  2  R/W  SOUND1CNT_L Channel 1 Sweep register       (NR10)
-  4000062h  2  R/W  SOUND1CNT_H Channel 1 Duty/Length/Envelope (NR11, NR12)
-  4000064h  2  R/W  SOUND1CNT_X Channel 1 Frequency/Control    (NR13, NR14)
-  4000066h     -    -           Not used
-  4000068h  2  R/W  SOUND2CNT_L Channel 2 Duty/Length/Envelope (NR21, NR22)
-  400006Ah     -    -           Not used
-  400006Ch  2  R/W  SOUND2CNT_H Channel 2 Frequency/Control    (NR23, NR24)
-  400006Eh     -    -           Not used
-  4000070h  2  R/W  SOUND3CNT_L Channel 3 Stop/Wave RAM select (NR30)
-  4000072h  2  R/W  SOUND3CNT_H Channel 3 Length/Volume        (NR31, NR32)
-  4000074h  2  R/W  SOUND3CNT_X Channel 3 Frequency/Control    (NR33, NR34)
-  4000076h     -    -           Not used
-  4000078h  2  R/W  SOUND4CNT_L Channel 4 Length/Envelope      (NR41, NR42)
-  400007Ah     -    -           Not used
-  400007Ch  2  R/W  SOUND4CNT_H Channel 4 Frequency/Control    (NR43, NR44)
-  400007Eh     -    -           Not used
-  4000080h  2  R/W  SOUNDCNT_L  Control Stereo/Volume/Enable   (NR50, NR51)
-  4000082h  2  R/W  SOUNDCNT_H  Control Mixing/DMA Control
-  4000084h  2  R/W  SOUNDCNT_X  Control Sound on/off           (NR52)
-  4000086h     -    -           Not used
-  4000088h  2  BIOS SOUNDBIAS   Sound PWM Control
-  400008Ah  ..   -    -         Not used
-  4000090h 2x10h R/W  WAVE_RAM  Channel 3 Wave Pattern RAM (2 banks!!)
-  40000A0h  4    W    FIFO_A    Channel A FIFO, Data 0-3
-  40000A4h  4    W    FIFO_B    Channel B FIFO, Data 0-3
-*/
+static constexpr auto PWM_FREQUENCY = 16780000;
 
-struct Sound {
-    using u16 = uint16_t;
+class SoundFIFO {
+  public:
+    size_t size() { return fifo.size(); }
 
-    // channel 1
-    u16 ch1_sweep;
-    u16 ch1_duty_length_env;
-    u16 ch1_freq_control;
+    void write(uint16_t h) {
+        if (fifo.size() + 2 >= MAX_BYTES)
+            return;
 
-    // channel 2
-    u16 ch2_duty_length_env;
-    u16 ch2_freq_control;
+        fifo.push((int8_t)(h & 0xFF));
+        fifo.push((int8_t)((h >> 8) & 0xFF));
+    }
 
-    // channel 3
-    u16 ch3_stop_wave_ram_select;
-    u16 ch3_length_volume;
-    u16 ch3_freq_control;
-    u16 ch3_wave_pattern[8];
+    int8_t read() {
+        if (fifo.empty()) {
+            return 0;
+        }
 
-    // channel 4
-    u16 ch4_length_env;
-    u16 ch4_freq_control;
+        int8_t v = fifo.front();
+        fifo.pop();
+        return v;
+    }
 
-    // control
-    u16 ctrl_stereo_volume;
-    u16 ctrl_mixing;
-    u16 ctrl_sound_on_off;
-    u16 pwm_control;
-
-    // fifo
-    u16 fifo_a[2];
-    u16 fifo_b[2];
+  private:
+    static constexpr size_t MAX_BYTES = 32;
+    std::queue<int8_t> fifo;
 };
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
+class Sound {
+    using u16 = uint16_t;
+    using u32 = uint32_t;
+
+  public:
+    Sound(Dma& dma, Scheduler& scheduler, uint32_t freq_out)
+      : dma(dma)
+      , scheduler(scheduler)
+      , sampling_rate(DEFAULT_SAMPLING_RATE)
+      , resampler(sampling_rate, freq_out)
+      , buffer(1024) {
+        scheduler.schedule_from_now(Task::Type::SAMPLE_PWM,
+                                    PWM_FREQUENCY / sampling_rate);
+    }
+
+    u16 read_halfword(u32 address) const;
+    void write_halfword(u32 address, u16 value);
+
+    void dma_playback(uint8_t timer_id, uint64_t at);
+    void sample(uint64_t at);
+
+  private:
+    // channel 1
+    Ch1Sweep ch1_sweep;
+    Ch1Envelope ch1_envelope;
+    Ch1FrequencyControl ch1_freq_ctrl;
+
+    // 75726
+    // channel 2
+    Ch2Envelope ch2_envelope;
+    Ch2FrequencyControl ch2_freq_ctrl;
+
+    // channel 3
+    Ch3WaveSelect ch3_wave_select;
+    Ch3LengthVolume ch3_len_vol;
+    Ch3FrequencyControl ch3_freq_ctrl;
+    uint16_t ch3_wave_pattern[8];
+
+    // channel 4
+    Ch4Envelope ch4_envelope;
+    Ch4FrequencyControl ch4_freq_ctrl;
+
+    // control
+    LRVolumeControl vol_ctrl;
+    DmaControl dma_ctrl;
+    SoundOnOff sound_on_off;
+    SoundBias sound_bias;
+
+    // fifo
+    SoundFIFO fifo_a;
+    SoundFIFO fifo_b;
+
+    int8_t dma_value_a;
+    int8_t dma_value_b;
+
+    Dma& dma;
+    Scheduler& scheduler;
+    uint32_t sampling_rate;
+    Resampler resampler;
+    AudioBuffer buffer;
+};
 // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
+}
+}
