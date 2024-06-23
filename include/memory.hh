@@ -5,12 +5,6 @@
 #include <cstdint>
 #include <vector>
 
-// ill use [] instead of at because i dont want if (...) throw conditions for
-// all accesses to improve performance (?)
-
-// we are also not gonna perform bound checks, as i expect the user to handle
-// those
-
 namespace matar {
 template<std::size_t N = 0>
 class Memory {
@@ -28,31 +22,30 @@ class Memory {
     void write_byte(std::size_t idx, uint8_t byte) { memory[idx] = byte; }
 
     uint16_t read_halfword(std::size_t idx) const {
-        return memory[idx] | memory[idx + 1] << 8;
+        uint16_t val;
+        std::memcpy(&val, &memory[idx], 2);
+        return val;
     }
 
     void write_halfword(std::size_t idx, uint16_t halfword) {
-        memory[idx]     = halfword & 0xFF;
-        memory[idx + 1] = halfword >> 8 & 0xFF;
+        std::memcpy(&memory[idx], &halfword, 2);
     }
 
     uint32_t read_word(std::size_t idx) const {
-        return memory[idx] | memory[idx + 1] << 8 | memory[idx + 2] << 16 |
-               memory[idx + 3] << 24;
+        uint32_t val;
+        std::memcpy(&val, &memory[idx], 4);
+        return val;
     }
 
     void write_word(std::size_t idx, uint32_t word) {
-        memory[idx]     = word & 0xFF;
-        memory[idx + 1] = word >> 8 & 0xFF;
-        memory[idx + 2] = word >> 16 & 0xFF;
-        memory[idx + 3] = word >> 24 & 0xFF;
+        std::memcpy(&memory[idx], &word, 4);
     }
 
     uint8_t& operator[](std::size_t idx) { return memory.at(idx); }
 
     Container& data() { return memory; }
 
-    std::size_t size() const { return memory.size(); }
+    constexpr std::size_t size() const { return memory.size(); }
 
   private:
     Container memory;
