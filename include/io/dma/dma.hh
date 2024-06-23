@@ -1,39 +1,51 @@
-#include <bit>
+#pragma once
+
+#include "io/system/system.hh"
+#include "registers.hh"
+#include "scheduler.hh"
 #include <cstdint>
 
 namespace matar {
 // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays)
-struct DmaControl {
-    struct {
-        int : 4; // this is supposed to be 5 bits, however, to align the struct
-                 // to 16 bits, we will adjust for the first LSB in the
-                 // read/write
-        uint8_t dst_adjustment : 2;
-        uint8_t src_adjustment : 2;
-        bool repeat : 1;
-        bool transfer_32 : 1;
-        int : 1;
-        uint8_t start_timing : 2;
-        bool irq_enable : 1;
-        bool enable : 1;
-    } value;
+static constexpr int NUM_DMA_CHANS = 4;
 
-    uint16_t read() const { return std::bit_cast<uint16_t>(value) << 1; };
-    void write(uint16_t raw) {
-        value = std::bit_cast<decltype(value)>(static_cast<uint16_t>(raw >> 1));
-    };
-};
+class Bus;
 
-struct Dma {
+class Dma {
+    using u64 = uint64_t;
+    using u32 = uint32_t;
     using u16 = uint16_t;
 
+  public:
+    Dma(Bus& bus, Scheduler& scheduler, System& system)
+      : bus(bus)
+      , scheduler(scheduler)
+      , system(system) {}
+
+    uint16_t read_halfword(uint32_t address) const;
+    void write_halfword(uint32_t address, uint16_t halfword);
+
+    void start_transfer(uint8_t id);
+
+    void notify(DmaControl::Timing timing, uint64_t at);
+    void schedule_sound_xfer(uint32_t fifo_addr, uint64_t at);
+
+  private:
+    void write_and_eval_ctrl(uint8_t id, uint16_t raw);
+
     struct {
-        u16 source[2];
-        u16 destination[2];
+        u64 timestamp;
+
+        /* registers */
+        u32 source;
+        u32 destination;
         u16 word_count;
         DmaControl control;
-    } channels[4];
+    } channels[NUM_DMA_CHANS];
+
+    Bus& bus;
+    Scheduler& scheduler;
+    System& system;
 };
 // NOLINTEND(cppcoreguidelines-avoid-c-arrays)
-
 }
