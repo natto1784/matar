@@ -1,3 +1,5 @@
 lib_sources += files(
-  'display.cc'
+  'display.cc',
+  'registers.cc',
+  'render.cc',
 )
