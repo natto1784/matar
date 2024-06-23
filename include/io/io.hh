@@ -1,17 +1,21 @@
 #pragma once
 
 #include "display/display.hh"
-#include "dma.hh"
-#include "sound.hh"
+#include "dma/dma.hh"
+#include "sound/sound.hh"
+#include "system/system.hh"
+#include "timer/timer.hh"
 #include <cstdint>
-#include <memory>
 
 namespace matar {
-class Bus; // forward declaration
-
 class IoDevices {
   public:
-    IoDevices(std::weak_ptr<Bus>);
+    IoDevices(Bus& bus, Scheduler& scheduler)
+      : display(scheduler, system, dma)
+      , sound(dma, scheduler, 44100)
+      , dma(bus, scheduler, system)
+      , timer(scheduler, system, sound)
+      , system(bus) {}
 
     uint8_t read_byte(uint32_t) const;
     void write_byte(uint32_t, uint8_t);
@@ -22,22 +26,26 @@ class IoDevices {
     uint16_t read_halfword(uint32_t) const;
     void write_halfword(uint32_t, uint16_t);
 
+    auto& pram() { return display.get_pram(); }
+    const auto& pram() const { return display.get_pram(); }
+
+    auto& vram() { return display.get_vram(); }
+    const auto& vram() const { return display.get_vram(); }
+
+    auto& oam() { return display.get_oam(); }
+    const auto& oam() const { return display.get_oam(); }
+
+    size_t obj_offset() {return display.obj_offset();}
+
+    void scheduler_event(Task::Type type, uint64_t at);
+
+    bool any_is_interrupt_pending() { return system.any_irq_is_pending(); }
+
   private:
-    struct {
-        using u16 = uint16_t;
-        bool post_boot_flag;
-        bool interrupt_master_enabler;
-        u16 interrupt_enable;
-        u16 interrupt_request_flags;
-        u16 waitstate_control;
-        bool low_power_mode;
-    } system = {};
-
-    display::Display display = {};
-    Sound sound              = {};
-    Dma dma                  = {};
-
-    std::weak_ptr<Bus> bus;
-    friend class Bus;
+    display::Display display;
+    sound::Sound sound;
+    Dma dma;
+    Timer timer;
+    System system;
 };
 }
