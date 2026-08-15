@@ -237,8 +237,9 @@ void
 GdbRsp::cmd_read_registers() {
     std::string response;
 
-    for (int i = 0; i < cpu->GPR_COUNT - 1; i++)
+    for (int i = 0; i < cpu->GPR_COUNT - 1; i++) {
         append_le(response, cpu->gpr[i]);
+    }
 
     // for some reason this PC needs to be the address of executing instruction
     // i.e, two instructions behind actual PC
@@ -359,7 +360,7 @@ GdbRsp::cmd_read_memory(std::string msg) {
     }
 
     for (uint i = 0; i < length; i++) {
-        response += std::format("{:02x}", cpu->bus->read_byte(address + i));
+        response += std::format("{:02x}", cpu->bus.read_byte(address + i));
     }
 
     gdb_log("sending memory values values");
@@ -385,7 +386,7 @@ GdbRsp::cmd_write_memory(std::string msg) {
         std::string values = sm[3].str();
 
         for (uint i = 0, j = 0; i < length && j < values.size(); i++, j += 2) {
-            cpu->bus->write_byte(
+            cpu->bus.write_byte(
               address + i, std::stoul(values.substr(j, 2), nullptr, 16) & 0xFF);
         }
 
