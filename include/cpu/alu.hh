@@ -38,8 +38,13 @@ struct Shift {
     ShiftData data;
 };
 
+struct ImmediateRotate {
+    uint8_t value;
+    uint8_t rot;
+};
+
 uint32_t
-eval_shift(ShiftType shift_type, uint32_t value, uint32_t amount, bool& carry);
+eval_shift(ShiftType shift_type, bool immediate, uint32_t value, uint32_t amount, bool& carry);
 
 uint32_t
 sub(uint32_t a, uint32_t b, bool& carry, bool& overflow);
