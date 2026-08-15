@@ -1,7 +1,10 @@
 #include "bus.hh"
+#include "cpu/alu.hh"
+#include "cpu/arm/instruction.hh"
 #include "cpu/cpu.hh"
 #include "util/bits.hh"
 #include "util/log.hh"
+#include <bit>
 
 namespace matar {
 void
@@ -41,9 +44,6 @@ Cpu::exec(arm::Instruction& instruction) {
 
             pc_warn(data.rn);
 
-            if (state != cpsr.state())
-                glogger.info_bold("State changed");
-
             // set state
             cpsr.set_state(state);
 
@@ -68,8 +68,9 @@ Cpu::exec(arm::Instruction& instruction) {
                       1S done, S+N taken care of by flush_pipeline()
             */
 
-            if (data.link)
-                gpr[14] = pc - INSTRUCTION_SIZE;
+            if (data.link) {
+                lr = pc - (INSTRUCTION_SIZE & ~0b1);
+            }
 
             pc += data.offset;
 
@@ -91,12 +92,13 @@ Cpu::exec(arm::Instruction& instruction) {
             */
 
             if (data.rd == data.rm)
-                glogger.error("rd and rm are not distinct in {}",
-                              typeid(data).name());
+                glogger.warn("rd and rm are not distinct in {}",
+                             typeid(data).name());
 
             pc_error(data.rd);
-            pc_error(data.rd);
-            pc_error(data.rd);
+            pc_error(data.rn);
+            pc_error(data.rs);
+            pc_error(data.rm);
 
             // mI
             for (int i = 0; i < multiplier_array_cycles(gpr[data.rs]); i++)
@@ -197,21 +199,26 @@ Cpu::exec(arm::Instruction& instruction) {
               I -> earlier read value is written to register
               Total = S + 2N +I
             */
+            uint32_t address = gpr[data.rn];
+            uint32_t source  = gpr[data.rm];
 
             pc_error(data.rm);
             pc_error(data.rn);
             pc_error(data.rd);
 
             if (data.byte) {
-                gpr[data.rd] =
-                  bus->read_byte(gpr[data.rn], CpuAccess::NonSequential);
-                bus->write_byte(
-                  gpr[data.rn], gpr[data.rm] & 0xFF, CpuAccess::Sequential);
+                uint32_t old = read_byte(address, CpuAccess::NonSequential);
+
+                write_byte(address, source & 0xFF, CpuAccess::Sequential);
+
+                gpr[data.rd] = old;
             } else {
-                gpr[data.rd] =
-                  bus->read_word(gpr[data.rn], CpuAccess::NonSequential);
-                bus->write_word(
-                  gpr[data.rn], gpr[data.rm], CpuAccess::Sequential);
+                uint32_t old =
+                  read_rotated_word(address, CpuAccess::NonSequential);
+
+                write_word(address, source, CpuAccess::Sequential);
+
+                gpr[data.rd] = old;
             }
 
             internal_cycle();
@@ -263,8 +270,11 @@ Cpu::exec(arm::Instruction& instruction) {
                     pc_error(shift->data.operand);
                 pc_error(shift->rm);
 
-                offset =
-                  eval_shift(shift->data.type, gpr[shift->rm], amount, carry);
+                offset = eval_shift(shift->data.type,
+                                    shift->data.immediate,
+                                    gpr[shift->rm],
+                                    amount,
+                                    carry);
 
                 cpsr.set_c(carry);
             }
@@ -276,12 +286,11 @@ Cpu::exec(arm::Instruction& instruction) {
             if (data.load) {
                 // byte
                 if (data.byte)
-                    gpr[data.rd] =
-                      bus->read_byte(address, CpuAccess::NonSequential);
+                    gpr[data.rd] = read_byte(address, CpuAccess::NonSequential);
                 // word
                 else
                     gpr[data.rd] =
-                      bus->read_word(address, CpuAccess::NonSequential);
+                      read_rotated_word(address, CpuAccess::NonSequential);
 
                 // N + S
                 if (data.rd == PC_INDEX)
@@ -299,18 +308,18 @@ Cpu::exec(arm::Instruction& instruction) {
 
                 // byte
                 if (data.byte)
-                    bus->write_byte(
-                      address, value & 0xFF, CpuAccess::NonSequential);
+                    write_byte(address, value & 0xFF, CpuAccess::NonSequential);
                 // word
                 else
-                    bus->write_word(address, value, CpuAccess::NonSequential);
+                    write_word(address, value, CpuAccess::NonSequential);
             }
 
             if (!data.pre)
                 address += (data.up ? offset : -offset);
-
-            if (!data.pre || data.write)
-                gpr[data.rn] = address;
+            if (!(data.load && data.rd == data.rn)) {
+                if (!data.pre || data.write)
+                    gpr[data.rn] = address;
+            }
 
             // last read/write is unrelated, this will be overwriten if
             // flushed
@@ -334,7 +343,6 @@ Cpu::exec(arm::Instruction& instruction) {
             */
             uint32_t address = gpr[data.rn];
             uint32_t offset  = 0;
-
             if (!data.pre && data.write)
                 glogger.error("Write-back enabled with post-indexing in {}",
                               typeid(data).name());
@@ -362,17 +370,25 @@ Cpu::exec(arm::Instruction& instruction) {
                 if (data.sign) {
                     // halfword
                     if (data.half) {
-                        gpr[data.rd] =
-                          bus->read_halfword(address, CpuAccess::NonSequential);
+                        if (address & 1) {
+                            gpr[data.rd] =
+                              read_byte(address, CpuAccess::NonSequential);
 
-                        // sign extend the halfword
-                        gpr[data.rd] =
-                          (static_cast<int32_t>(gpr[data.rd]) << 16) >> 16;
+                            // sign extend the halfword
+                            gpr[data.rd] =
+                              (static_cast<int32_t>(gpr[data.rd]) << 24) >> 24;
+                        } else {
+                            gpr[data.rd] =
+                              read_halfword(address, CpuAccess::NonSequential);
 
+                            // sign extend the halfword
+                            gpr[data.rd] =
+                              (static_cast<int32_t>(gpr[data.rd]) << 16) >> 16;
+                        }
                         // byte
                     } else {
                         gpr[data.rd] =
-                          bus->read_byte(address, CpuAccess::NonSequential);
+                          read_byte(address, CpuAccess::NonSequential);
 
                         // sign extend the byte
                         gpr[data.rd] =
@@ -381,7 +397,7 @@ Cpu::exec(arm::Instruction& instruction) {
                     // unsigned halfword
                 } else if (data.half) {
                     gpr[data.rd] =
-                      bus->read_halfword(address, CpuAccess::NonSequential);
+                      read_rotated_halfword(address, CpuAccess::NonSequential);
                 }
 
                 // I
@@ -400,15 +416,17 @@ Cpu::exec(arm::Instruction& instruction) {
 
                 // halfword
                 if (data.half)
-                    bus->write_halfword(
+                    write_halfword(
                       address, value & 0xFFFF, CpuAccess::NonSequential);
             }
 
             if (!data.pre)
                 address += (data.up ? offset : -offset);
 
-            if (!data.pre || data.write)
-                gpr[data.rn] = address;
+            if (!(data.load && data.rd == data.rn)) {
+                if (!data.pre || data.write)
+                    gpr[data.rn] = address;
+            }
 
             // last read/write is unrelated, this will be overwriten if
             // flushed
@@ -433,12 +451,11 @@ Cpu::exec(arm::Instruction& instruction) {
               Total = 2N + (n-1)S
             */
 
-            static constexpr uint8_t alignment = 4; // word
-
-            uint32_t address = gpr[data.rn];
-            Mode mode        = cpsr.mode();
-            int8_t i         = 0;
-            CpuAccess access = CpuAccess::NonSequential;
+            uint32_t base_address = gpr[data.rn];
+            uint32_t address      = base_address;
+            Mode mode             = cpsr.mode();
+            int8_t i              = 0;
+            CpuAccess access      = CpuAccess::NonSequential;
 
             pc_error(data.rn);
 
@@ -458,66 +475,123 @@ Cpu::exec(arm::Instruction& instruction) {
                 }
             }
 
-            // increment beforehand
-            if (data.pre)
-                address += (data.up ? alignment : -alignment);
+            if (data.regs == 0) {
+                address += (data.up ? 0 : -0x3c);
+                if (data.pre) {
+                    address += (data.up ? 4 : -4);
+                }
 
-            if (data.load) {
-                if (get_bit(data.regs, PC_INDEX)) {
+                if (data.load) {
+                    pc         = read_word(address, CpuAccess::NonSequential);
                     is_flushed = true;
-
-                    // current mode's spsr is already loaded when it was
-                    // switched
-                    if (data.s)
-                        spsr = cpsr;
+                } else {
+                    write_word(
+                      address, pc + INSTRUCTION_SIZE, CpuAccess::NonSequential);
                 }
 
-                if (data.up) {
-                    for (i = 0; i < GPR_COUNT; i++) {
-                        if (get_bit(data.regs, i)) {
-                            gpr[i] = bus->read_word(address, access);
-                            address += alignment;
-                            access = CpuAccess::Sequential;
+                if (!data.pre) {
+                    address += (data.up ? 4 : -4);
+                }
+
+                address += (data.up ? 0x3c : 0);
+            }
+
+            else {
+                if (data.pre) {
+                    // increment beforehand
+                    address += (data.up ? 4 : -4);
+                }
+
+                if (data.load) {
+                    if (get_bit(data.regs, data.rn)) {
+                        data.write = false;
+                    }
+
+                    if (get_bit(data.regs, PC_INDEX)) {
+                        is_flushed = true;
+
+                        // current mode's spsr is already loaded when it was
+                        // switched
+                        if (data.s) {
+                            Psr old_spsr = spsr;
+                            chg_mode(spsr.mode());
+                            cpsr = old_spsr;
                         }
                     }
-                } else {
-                    for (i = GPR_COUNT - 1; i >= 0; i--) {
-                        if (get_bit(data.regs, i)) {
-                            gpr[i] = bus->read_word(address, access);
-                            address -= alignment;
-                            access = CpuAccess::Sequential;
+
+                    if (data.up) {
+                        for (i = 0; i < GPR_COUNT; i++) {
+                            if (get_bit(data.regs, i)) {
+                                gpr[i] = read_word(address, access);
+                                address += 4;
+                                access = CpuAccess::Sequential;
+                            }
                         }
+                    } else {
+                        for (i = GPR_COUNT - 1; i >= 0; i--) {
+                            if (get_bit(data.regs, i)) {
+                                gpr[i] = read_word(address, access);
+                                address -= 4;
+                                access = CpuAccess::Sequential;
+                            }
+                        }
+                    }
+
+                    // I
+                    internal_cycle();
+                } else {
+                    uint32_t old_rn;
+
+                    if (get_bit(data.regs, data.rn)) {
+                        old_rn       = gpr[data.rn];
+                        gpr[data.rn] = base_address;
+
+                        if (std::countr_zero(data.regs) != data.rn) {
+                            int new_base_offset = std::popcount(data.regs) * 4;
+                            gpr[data.rn] +=
+                              (data.up ? new_base_offset : -new_base_offset);
+                        }
+                    }
+                    if (get_bit(data.regs, PC_INDEX)) {
+                        pc += 4;
+                    }
+
+                    if (data.up) {
+                        for (i = 0; i < GPR_COUNT; i++) {
+                            if (get_bit(data.regs, i)) {
+                                write_word(address, gpr[i], access);
+                                address += 4;
+                                access = CpuAccess::Sequential;
+                            }
+                        }
+                    } else {
+                        for (i = GPR_COUNT - 1; i >= 0; i--) {
+                            if (get_bit(data.regs, i)) {
+                                write_word(address, gpr[i], access);
+                                address -= 4;
+                                access = CpuAccess::Sequential;
+                            }
+                        }
+                    }
+
+                    if (get_bit(data.regs, PC_INDEX)) {
+                        pc -= 4;
+                    }
+
+                    if (get_bit(data.regs, data.rn)) {
+                        gpr[data.rn] = old_rn;
                     }
                 }
 
-                // I
-                internal_cycle();
-            } else {
-                if (data.up) {
-                    for (i = 0; i < GPR_COUNT; i++) {
-                        if (get_bit(data.regs, i)) {
-                            bus->write_word(address, gpr[i], access);
-                            address += alignment;
-                            access = CpuAccess::Sequential;
-                        }
-                    }
-                } else {
-                    for (i = GPR_COUNT - 1; i >= 0; i--) {
-                        if (get_bit(data.regs, i)) {
-                            bus->write_word(address, gpr[i], access);
-                            address -= alignment;
-                            access = CpuAccess::Sequential;
-                        }
-                    }
+                // fix increment
+                if (data.pre) {
+                    address += (data.up ? -4 : 4);
                 }
             }
 
-            // fix increment
-            if (data.pre)
-                address += (data.up ? -alignment : alignment);
-
-            if (!data.pre || data.write)
+            if (data.write) {
                 gpr[data.rn] = address;
+            }
 
             // load back the original mode registers
             chg_mode(mode);
@@ -531,6 +605,8 @@ Cpu::exec(arm::Instruction& instruction) {
               S -> prefetched instruction in step()
               Total = 1S cycle
             */
+            uint32_t operand;
+            uint32_t reg_idx;
 
             if (data.spsr && cpsr.mode() == Mode::User) {
                 glogger.error("Accessing SPSR in User mode in {}",
@@ -539,26 +615,41 @@ Cpu::exec(arm::Instruction& instruction) {
 
             Psr& psr = data.spsr ? spsr : cpsr;
 
+            if (const ImmediateRotate* immediate =
+                  std::get_if<ImmediateRotate>(&data.operand)) {
+                bool carry = cpsr.c();
+
+                operand = eval_shift(ShiftType::ROR,
+                                     false,
+                                     immediate->value,
+                                     immediate->rot * 2,
+                                     carry);
+
+                cpsr.set_c(carry);
+            } else if (const uint8_t* reg =
+                         std::get_if<uint8_t>(&data.operand)) {
+
+                pc_error(*reg);
+                operand = gpr[*reg];
+                reg_idx = *reg;
+            }
+
             switch (data.type) {
                 case PsrTransfer::Type::Mrs:
-                    pc_error(data.operand);
-                    gpr[data.operand] = psr.raw();
+                    gpr[reg_idx] = psr.raw();
                     break;
                 case PsrTransfer::Type::Msr:
-                    pc_error(data.operand);
-
                     if (cpsr.mode() != Mode::User) {
                         if (!data.spsr) {
-                            Psr tmp = Psr(gpr[data.operand]);
+                            Psr tmp = Psr(operand);
                             chg_mode(tmp.mode());
+                            cpsr = tmp;
                         }
 
-                        psr.set_all(gpr[data.operand]);
+                        psr.set_all(operand);
                     }
                     break;
                 case PsrTransfer::Type::Msr_flg:
-                    uint32_t operand =
-                      (data.imm ? data.operand : gpr[data.operand]);
                     psr.set_n(get_bit(operand, 31));
                     psr.set_z(get_bit(operand, 30));
                     psr.set_c(get_bit(operand, 29));
@@ -566,7 +657,7 @@ Cpu::exec(arm::Instruction& instruction) {
                     break;
             }
         },
-        [this, pc_error, &is_flushed](DataProcessing& data) {
+        [this, &is_flushed](DataProcessing& data) {
             /*
               Always
               ======
@@ -587,41 +678,48 @@ Cpu::exec(arm::Instruction& instruction) {
 
             using OpCode = DataProcessing::OpCode;
 
+            const bool carry_in = cpsr.c();
+            bool carry          = carry_in;
+
             uint32_t op_1 = gpr[data.rn];
             uint32_t op_2 = 0;
 
             uint32_t result = 0;
 
-            if (const uint32_t* immediate =
-                  std::get_if<uint32_t>(&data.operand)) {
-                op_2 = *immediate;
+            if (const ImmediateRotate* immediate =
+                  std::get_if<ImmediateRotate>(&data.operand)) {
+                op_2 = eval_shift(ShiftType::ROR,
+                                  false,
+                                  immediate->value,
+                                  immediate->rot * 2,
+                                  carry);
             } else if (const Shift* shift = std::get_if<Shift>(&data.operand)) {
                 uint8_t amount =
                   (shift->data.immediate ? shift->data.operand
                                          : gpr[shift->data.operand] & 0xFF);
+                uint32_t shifted_reg = gpr[shift->rm];
 
-                bool carry = cpsr.c();
+                if (!shift->data.immediate) {
+                    // PC is 12 bytes ahead when shifting
+                    if (data.rn == PC_INDEX)
+                        op_1 += INSTRUCTION_SIZE;
 
-                if (!shift->data.immediate)
-                    pc_error(shift->data.operand);
-                pc_error(shift->rm);
+                    if (shift->rm == PC_INDEX) {
+                        shifted_reg += INSTRUCTION_SIZE;
+                    }
 
-                op_2 =
-                  eval_shift(shift->data.type, gpr[shift->rm], amount, carry);
-
-                cpsr.set_c(carry);
-
-                // PC is 12 bytes ahead when shifting
-                if (data.rn == PC_INDEX)
-                    op_1 += INSTRUCTION_SIZE;
-
-                // 1I when register specified shift
-                if (!shift->data.immediate)
+                    // 1I when register specified shift
                     internal_cycle();
+                }
+
+                op_2 = eval_shift(shift->data.type,
+                                  shift->data.immediate,
+                                  shifted_reg,
+                                  amount,
+                                  carry);
             }
 
             bool overflow = cpsr.v();
-            bool carry    = cpsr.c();
 
             switch (data.opcode) {
                 case OpCode::AND:
@@ -645,13 +743,13 @@ Cpu::exec(arm::Instruction& instruction) {
                     result = add(op_1, op_2, carry, overflow);
                     break;
                 case OpCode::ADC:
-                    result = add(op_1, op_2, carry, overflow, carry);
+                    result = add(op_1, op_2, carry, overflow, carry_in);
                     break;
                 case OpCode::SBC:
-                    result = sbc(op_1, op_2, carry, overflow, carry);
+                    result = sbc(op_1, op_2, carry, overflow, carry_in);
                     break;
                 case OpCode::RSC:
-                    result = sbc(op_2, op_1, carry, overflow, carry);
+                    result = sbc(op_2, op_1, carry, overflow, carry_in);
                     break;
                 case OpCode::ORR:
                     result = op_1 | op_2;
@@ -676,10 +774,12 @@ Cpu::exec(arm::Instruction& instruction) {
 
             if (data.set) {
                 if (data.rd == PC_INDEX) {
+                    Psr old_spsr = spsr;
                     if (cpsr.mode() == Mode::User)
                         glogger.error("Running {} in User mode",
                                       typeid(data).name());
-                    spsr = cpsr;
+                    chg_mode(spsr.mode());
+                    cpsr = old_spsr;
                 } else {
                     set_conditions();
                 }
@@ -690,14 +790,17 @@ Cpu::exec(arm::Instruction& instruction) {
                 set_conditions();
             } else {
                 gpr[data.rd] = result;
-                if (data.rd == PC_INDEX || data.opcode == OpCode::MVN)
+                if (data.rd == PC_INDEX)
                     is_flushed = true;
             }
         },
         [this, &is_flushed](SoftwareInterrupt) {
+            spsr_banked.svc   = cpsr;
+            gpr_banked.svc[1] = pc - 2 * arm::INSTRUCTION_SIZE + 4;
             chg_mode(Mode::Supervisor);
-            pc         = 0x00;
-            spsr       = cpsr;
+            cpsr.set_state(State::Arm);
+            cpsr.set_irq_disabled(true);
+            pc         = SWI_VECTOR;
             is_flushed = true;
         },
         [](auto& data) {
@@ -706,7 +809,7 @@ Cpu::exec(arm::Instruction& instruction) {
       instruction.data);
 
     if (is_flushed)
-        flush_pipeline<State::Arm>();
+        flush_pipeline();
     else
         advance_pc_arm();
 }
