@@ -12,4 +12,5 @@ executable(
   link_with: target_deps,
   include_directories: inc,
   install : true,
+  cpp_args: lib_cpp_args
 )

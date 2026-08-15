@@ -1,13 +1,12 @@
+#include "../../src/gdb_rsp.hh"
 #include "bus.hh"
 #include "cpu/cpu.hh"
 #include "util/loglevel.hh"
 #include <array>
-#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <memory>
-#include <thread>
+#include <string>
 #include <vector>
 
 // NOLINTBEGIN
@@ -16,6 +15,7 @@ int
 main(int argc, const char* argv[]) {
     std::vector<uint8_t> rom;
     std::array<uint8_t, matar::Bus::BIOS_SIZE> bios = { 0 };
+    uint64_t cycles;
 
     auto usage = [argv]() {
         std::cerr << "Usage: " << argv[0] << " <file> [-b <bios>]" << std::endl;
@@ -35,10 +35,16 @@ main(int argc, const char* argv[]) {
                 bios_file = argv[i];
             else
                 usage();
+        } else if (arg == "-c") {
+            if (++i < argc)
+                cycles = std::stoull(argv[i]);
+            else
+                usage();
         } else {
             rom_file = arg;
         }
     }
+    std::cout << cycles << std::endl;
 
     if (rom_file.empty())
         usage();
@@ -84,18 +90,13 @@ main(int argc, const char* argv[]) {
     std::flush(std::cout);
     std::flush(std::cout);
 
-    matar::set_log_level(matar::LogLevel::Debug);
 
     try {
-        std::shared_ptr<matar::Bus> bus =
-          matar::Bus::init(std::move(bios), std::move(rom));
-
+        matar::Bus bus = matar::Bus(std::move(bios), std::move(rom));
         matar::Cpu cpu(bus);
 
-        while (true) {
-            cpu.step();
-            //    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
+        bus.run(cycles);
+
     } catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << std::endl;
         return 1;

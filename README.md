@@ -60,7 +60,11 @@ This goes without saying but using a different toolchain to compile these librar
   - [x] TCP Server (for GDB RSP)
   - [x] SHA256 hash (why? idk)
 
-## Available unit tests so far
+## Unit tests
+Back when I started working on this, after completing the CPU, I spent a considerable amount of time writing stupid and dumb unit tests. Only to realise later that test suites for GBA (like literally every other console) already exist (surprise). So I do not think I will be working on any new tests.
+
+### Available unit tests so far
+
 - CPU
   - Arm
     - Disassembler
@@ -71,7 +75,7 @@ This goes without saying but using a different toolchain to compile these librar
 - Bus
   - Memory read/writes
   - Cycle Counting
-- Some internal utility tests (idk why)
+- Some internal utilities (idk why)
   
 
 -----
@@ -79,3 +83,5 @@ This goes without saying but using a different toolchain to compile these librar
 # LOG
 - June 11, 2024: After almost an year, I have come back to this silly abandoned project, will probably complete it soon.
 - June 16, 2024: I ought to complete this soon
+- June 24, 2024: I am shifting some goals, I think I have lost interest in this after learning that already much better, similar projects exist. Hence, I will be making this functional but not super accurate
+- August 15, 2026: Revisiting this after two years, implemented a few things might be able to complete it this time.
