@@ -1,4 +1,5 @@
 #include "cpu/arm/instruction.hh"
+#include "cpu/alu.hh"
 #include "util/bits.hh"
 
 namespace matar::arm {
@@ -114,7 +115,7 @@ Instruction::Instruction(uint32_t insn)
         bool up        = get_bit(insn, 23);
         bool pre       = get_bit(insn, 24);
 
-        offset |= (imm ? bit_range(insn, 8, 11) << 2 : 0);
+        offset |= (imm ? bit_range(insn, 8, 11) << 4 : 0);
 
         data = HalfwordTransfer{ .offset = offset,
                                  .half   = half,
@@ -156,36 +157,37 @@ Instruction::Instruction(uint32_t insn)
         bool imm      = get_bit(insn, 25);
 
         if ((opcode == OpCode::TST || opcode == OpCode::CMP) && !set) {
-            data = PsrTransfer{ .operand = rd,
-                                .spsr    = get_bit(insn, 22),
-                                .type    = PsrTransfer::Type::Mrs,
-                                .imm     = 0 };
+            data = PsrTransfer{
+                .operand = rd,
+                .spsr    = get_bit(insn, 22),
+                .type    = PsrTransfer::Type::Mrs,
+            };
         } else if ((opcode == OpCode::TEQ || opcode == OpCode::CMN) && !set) {
-            uint32_t operand = 0;
+            std::variant<uint8_t, ImmediateRotate> operand;
 
             if (imm) {
-                uint32_t immediate = bit_range(insn, 0, 7);
-                uint8_t rotate     = bit_range(insn, 8, 11);
+                uint8_t immediate = bit_range(insn, 0, 7);
+                uint8_t rotate    = bit_range(insn, 8, 11);
 
-                operand = std::rotr(immediate, rotate * 2);
+                operand = ImmediateRotate{ .value = immediate, .rot = rotate };
             } else {
-                operand = bit_range(insn, 0, 3);
+                operand = static_cast<uint8_t>(bit_range(insn, 0, 3));
             }
 
-            data = PsrTransfer{ .operand = operand,
-                                .spsr    = get_bit(insn, 22),
-                                .type    = (get_bit(insn, 16)
-                                              ? PsrTransfer::Type::Msr
+            data = PsrTransfer{
+                .operand = operand,
+                .spsr    = get_bit(insn, 22),
+                .type    = (get_bit(insn, 16) ? PsrTransfer::Type::Msr
                                               : PsrTransfer::Type::Msr_flg),
-                                .imm     = imm };
+            };
         } else {
-            std::variant<Shift, uint32_t> operand;
+            std::variant<Shift, ImmediateRotate> operand;
 
             if (imm) {
-                uint32_t immediate = bit_range(insn, 0, 7);
-                uint8_t rotate     = bit_range(insn, 8, 11);
+                uint8_t immediate = bit_range(insn, 0, 7);
+                uint8_t rotate    = bit_range(insn, 8, 11);
 
-                operand = std::rotr(immediate, rotate * 2);
+                operand = ImmediateRotate{ .value = immediate, .rot = rotate };
             } else {
                 uint8_t rm = bit_range(insn, 0, 3);
                 bool reg   = get_bit(insn, 4);

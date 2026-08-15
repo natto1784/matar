@@ -1,3 +1,4 @@
+#include "cpu/alu.hh"
 #include "cpu/arm/instruction.hh"
 #include "util/bits.hh"
 #include <format>
@@ -135,19 +136,29 @@ Instruction::disassemble() {
                                (data.s ? "^" : ""));
         },
         [condition](PsrTransfer& data) {
+            std::string operand;
+
+            if (const ImmediateRotate* immediate =
+                  std::get_if<ImmediateRotate>(&data.operand)) {
+                operand = std::format(
+                  "#{:d}", std::rotr(immediate->value, immediate->rot * 2));
+            } else if (const uint8_t* reg =
+                         std::get_if<uint8_t>(&data.operand)) {
+                operand = std::format("R{:d}", *reg);
+            }
+
             if (data.type == PsrTransfer::Type::Mrs) {
-                return std::format("MRS{} R{:d},{}",
+                return std::format("MRS{} {},{}",
                                    condition,
-                                   data.operand,
+                                   operand,
                                    (data.spsr ? "SPSR_all" : "CPSR_all"));
             } else {
                 return std::format(
-                  "MSR{} {}_{},{}{}",
+                  "MSR{} {}_{},{}",
                   condition,
                   (data.spsr ? "SPSR" : "CPSR"),
                   (data.type == PsrTransfer::Type::Msr_flg ? "flg" : "all"),
-                  (data.imm ? '#' : 'R'),
-                  data.operand);
+                  operand);
             }
         },
         [condition](DataProcessing& data) {
@@ -155,9 +166,10 @@ Instruction::disassemble() {
 
             std::string op_2;
 
-            if (const uint32_t* operand =
-                  std::get_if<uint32_t>(&data.operand)) {
-                op_2 = std::format("#{:d}", *operand);
+            if (const ImmediateRotate* operand =
+                  std::get_if<ImmediateRotate>(&data.operand)) {
+                op_2 = std::format("#{:d}",
+                                   std::rotr(operand->value, operand->rot * 2));
             } else if (const Shift* shift = std::get_if<Shift>(&data.operand)) {
                 op_2 = std::format("R{:d},{} {}{:d}",
                                    shift->rm,

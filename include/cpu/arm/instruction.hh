@@ -109,7 +109,7 @@ struct DataProcessing {
         MVN = 0b1111
     };
 
-    std::variant<Shift, uint32_t> operand;
+    std::variant<Shift, ImmediateRotate> operand;
     uint8_t rd;
     uint8_t rn;
     bool set;
@@ -154,11 +154,9 @@ struct PsrTransfer {
         Msr_flg
     };
 
-    uint32_t operand;
+    std::variant<uint8_t, ImmediateRotate> operand;
     bool spsr;
     Type type;
-    // ignored outside MSR_flg
-    bool imm;
 };
 
 struct CoprocessorDataTransfer {
