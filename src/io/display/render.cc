@@ -7,6 +7,11 @@
 namespace matar {
 namespace display {
 
+static constexpr uint32_t TILE_BLOCK_SIZE      = 16 * 1024; /* 16kb */
+static constexpr uint32_t SCREEN_BLOCK_SIZE    = 2 * 1024;  /* 2kb */
+static constexpr uint32_t TILE_SIZE_4BIT_DEPTH = 32;
+static constexpr uint32_t TILE_SIZE_8BIT_DEPTH = 64;
+
 template<std::integral Int>
 static inline Vec2<Int>
 pixel_to_texel(Vec2<Int> ref, Int x, Int a, Int c) {
@@ -16,8 +21,8 @@ pixel_to_texel(Vec2<Int> ref, Int x, Int a, Int c) {
 template<int MODE, typename>
 void
 Display::render_bitmap_mode_line() {
-    static constexpr auto VIEWPORT_WIDTH = MODE == 5 ? 160 : LCD_WIDTH;
-    static constexpr auto FRAME_1_OFFSET = 0xA000;
+    static constexpr uint32_t VIEWPORT_WIDTH = MODE == 5 ? 160 : LCD_WIDTH;
+    static constexpr uint32_t FRAME_1_OFFSET = 0xA000;
 
     for (auto x = 0; x < LCD_WIDTH; x++) {
         /* pixel to texel for x shift by 8 cuz both ref.x and a are fixed point
@@ -26,7 +31,7 @@ Display::render_bitmap_mode_line() {
         Vec2<int32_t> texel = pixel_to_texel<int32_t>(
           bg2_rot_scale.internal, x, bg2_rot_scale.a, bg2_rot_scale.c);
 
-        auto idx = texel.y * VIEWPORT_WIDTH + texel.x;
+        uint32_t idx = texel.y * VIEWPORT_WIDTH + texel.x;
 
         /* mode 3 and 5 takes 2 bytes per pixel */
         if constexpr (MODE != 4) {
@@ -59,110 +64,122 @@ Display::render_bitmap_mode_line<5>();
 template<int LAYER, typename>
 void
 Display::render_text_layer_line() {
-    struct TextScreenMap {
-        uint16_t tile_number : 10;
-        bool mirror_x : 1;
-        bool mirror_y : 1;
-        uint8_t palette_number : 4;
+    constexpr uint32_t SCREEN_SIZE    = 256;
+    constexpr uint32_t TILE_SIZE      = 8;
+    constexpr uint32_t TILES_PER_ROW  = SCREEN_SIZE / TILE_SIZE;
+    constexpr uint32_t MAP_ENTRY_SIZE = 2;
+
+    const auto& control = bg_control[LAYER].value;
+
+    const uint32_t tile_base = control.character_base_block * TILE_BLOCK_SIZE;
+    const uint32_t map_base  = control.screen_base_block * SCREEN_BLOCK_SIZE;
+
+    const bool color_256 = control.colors256;
+    const uint32_t tile_data_size =
+      color_256 ? TILE_SIZE_8BIT_DEPTH : TILE_SIZE_4BIT_DEPTH;
+
+    Vec2<uint32_t> screen_pos{
+        static_cast<uint32_t>(bg_offset[LAYER].x),
+        static_cast<uint32_t>(bg_offset[LAYER].y) + vertical_counter,
     };
-    uint32_t tile_base =
-      bg_control[LAYER].value.character_base_block * 0x4000; // 16 kb
-    uint32_t map_base =
-      bg_control[LAYER].value.screen_base_block * 0x800; // 2 kb
-    uint8_t screen_size_mode = bg_control[LAYER].value.screen_size;
+    uint32_t screen_index = 0;
 
-    Point<int32_t> vp_coords;
-    uint8_t screen_index;
-
-    bool colors256    = bg_control[LAYER].value.colors256;
-    uint8_t tile_size = colors256 ? 0x40 : 0x20;
-
-    switch (screen_size_mode) {
-            // 256 x 256 - SC0
-        case 0: {
-            vp_coords    = { bg_offset[LAYER].x % 256,
-                             (vertical_counter + bg_offset[LAYER].y) % 256 };
+    switch (control.screen_size) {
+        case 0:
+            /* 256 x 256 - SC0 */
+            screen_pos.x %= 256;
+            screen_pos.y %= 256;
             screen_index = 0;
             break;
-        }
-            // 512  x 256 - SC0,SC1
-        case 1: {
-            vp_coords    = { bg_offset[LAYER].x % 512,
-                             (vertical_counter + bg_offset[LAYER].y) % 256 };
-            screen_index = vp_coords.x / 256;
+        case 1:
+            /* 512  x 256 - SC0,SC1 */
+            screen_pos.x %= 512;
+            screen_pos.y %= 256;
+            screen_index = screen_pos.x / SCREEN_SIZE;
             break;
-        }
-            // 256 x 512 - SC0,SC1
-        case 2: {
-            vp_coords    = { bg_offset[LAYER].x % 256,
-                             (vertical_counter + bg_offset[LAYER].y) % 512 };
-            screen_index = vp_coords.y / 256;
+        case 2:
+            /* 256 x 512 - SC0,SC1 */
+            screen_pos.x %= 256;
+            screen_pos.y %= 512;
+            screen_index = screen_pos.y / SCREEN_SIZE;
             break;
-        }
-
-            // 512 x 512 - SC0,SC1,SC2,SC3
-        case 3: {
-            vp_coords    = { bg_offset[LAYER].x % 512,
-                             (vertical_counter + bg_offset[LAYER].y) % 512 };
-            screen_index = vp_coords.x / 256 + (vp_coords.y / 256) * 2;
+        case 3:
+            /* 512 x 512 - SC0,SC1,SC2,SC3 */
+            screen_pos.x %= 512;
+            screen_pos.y %= 512;
+            screen_index =
+              screen_pos.x / SCREEN_SIZE + (screen_pos.y / SCREEN_SIZE) * 2;
             break;
-        }
-            // unreachable
-        default: {
-            glogger.error("this is NOT supposed to happen");
-            std::abort();
-        }
+        default:
+            std::unreachable();
     }
 
-    // every screen has 256x256 pixels, 32x32 tiles i.e, every tile has 64
-    // pixels i.e, every row has 32 tiles and every tile row has 8 pixels
+    /* every screen has 256x256 pixels, 32x32 tiles i.e, every tile has 64
+     * pixels i.e, every row has 32 tiles and every tile row has 8 pixels */
 
-    Vec2<uint32_t> tile = { (vp_coords.x % 256) / 8, (vp_coords.y % 256) / 8 };
-    Vec2<uint32_t> tile_pixel = { vp_coords.x % 8, vp_coords.y % 8 };
+    Vec2<uint32_t> tile_pos{
+        (screen_pos.x % 256) / TILE_SIZE,
+        (screen_pos.y % 256) / TILE_SIZE,
+    };
+    Vec2<uint32_t> pixel_in_tile{
+        screen_pos.x % TILE_SIZE,
+        screen_pos.y % TILE_SIZE,
+    };
 
-    for (int si = screen_index, x = 0; si <= screen_size_mode % 2; si++) {
-        auto tx = tile.x;
+    int x = 0;
 
-        auto map_index = map_base;
-        // starting address for every screen are separated at 2kb (0x800)
-        map_index += 0x800 * si;
-        // for "tx"th tile
-        map_index += 2 * (tx + tile.y * 32);
+    while (x < LCD_WIDTH) {
+        struct TextScreenMap {
+            uint16_t tile_number : 10;
+            bool mirrorx : 1;
+            bool mirrory : 1;
+            uint8_t palette_number : 4;
+        };
 
-        for (; tx < 32; tx++, map_index += 2) {
-            auto tpx = tile_pixel.x;
-            auto tpy = tile_pixel.y;
+        uint32_t map_index =
+          map_base
+          /* SC0,SC1,SC2,SC3 screen blocks are contiguous */
+          + screen_index * SCREEN_BLOCK_SIZE
+          /* Tile data is 2 bytes per entry */
+          + (tile_pos.x + tile_pos.y * TILES_PER_ROW) * MAP_ENTRY_SIZE;
 
-            uint16_t map_raw  = vram.read_halfword(map_index);
-            TextScreenMap map = std::bit_cast<TextScreenMap>(map_raw);
+        TextScreenMap map =
+          std::bit_cast<TextScreenMap>(vram.read_halfword(map_index));
 
-            auto tile_address = tile_base;
-            // get the ith tile
-            tile_address += tile_size * map.tile_number;
+        uint32_t tile_address = tile_base
+                                /* 4bit depth -> 32 bytes per tile
+                                 *  8bit depth -> 64 bytes per tile */
+                                + map.tile_number * tile_data_size;
 
-            for (; tpx < 8; tpx++) {
-                auto tpx_ = map.mirror_x ? 7 - tpx : tpx;
-                auto tpy_ = map.mirror_y ? 7 - tpy : tpy;
+        while (pixel_in_tile.x < TILE_SIZE && x < LCD_WIDTH) {
 
-                uint8_t color_index = read_color_index(
-                  tile_address, tpx_, tpy_, static_cast<ColorDepth>(colors256));
-                Color color = fetch_color(
-                  color_index, colors256 ? 0 : map.palette_number, 0);
+            const uint8_t color_index = read_color_index(
+              tile_address,
+              map.mirrorx ? TILE_SIZE - 1 - pixel_in_tile.x : pixel_in_tile.x,
+              map.mirrory ? TILE_SIZE - 1 - pixel_in_tile.y : pixel_in_tile.y,
+              static_cast<ColorDepth>(color_256));
 
-                scanline_buffers[LAYER][x] = color;
+            scanline_buffers[LAYER][x] =
+              fetch_color(color_index, color_256 ? 0 : map.palette_number, 0);
 
-                if (++x == LCD_WIDTH)
-                    goto BREAK;
+            pixel_in_tile.x++;
+            x++;
+        }
+
+        pixel_in_tile.x = 0;
+
+        /* should only happen once */
+        if (++tile_pos.x == TILES_PER_ROW) {
+            tile_pos.x = 0;
+
+            if (control.screen_size == 1 || control.screen_size == 3) {
+                screen_index ^= 1;
             }
-            tile_pixel.x = 0;
         }
-        tile.x = 0;
     }
-
-BREAK:
 }
 
-// explicit instantitation
+/* explicit instantitation */
 template void
 Display::render_text_layer_line<0>();
 template void
