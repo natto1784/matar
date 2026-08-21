@@ -192,26 +192,24 @@ Display::render_text_layer_line<3>();
 template<int LAYER, typename>
 void
 Display::render_rot_scale_layer_line() {
+    constexpr auto TILE_SIZE = 8;
+
     uint32_t tile_base =
-      bg_control[LAYER].value.character_base_block * 0x4000; // 16 kb
+      bg_control[LAYER].value.character_base_block * TILE_BLOCK_SIZE;
     uint32_t map_base =
-      bg_control[LAYER].value.screen_base_block * 0x800; // 2 kb
+      bg_control[LAYER].value.screen_base_block * SCREEN_BLOCK_SIZE;
     int32_t screen_size = 128 << bg_control[LAYER].value.screen_size;
 
-    for (int x = 0; x < LCD_WIDTH; x++) {
-        RotationScaling rot_scale;
+    const RotationScaling& rot_scale =
+      LAYER == 2 ? bg2_rot_scale : bg3_rot_scale;
 
-        if constexpr (LAYER == 2) {
-            rot_scale = bg2_rot_scale;
-        } else {
-            rot_scale = bg3_rot_scale;
-        }
-        // pixel to texel for x
-        // shift by 8 cuz both ref.x and a are fixed point floats shifted by 8
+    for (int x = 0; x < LCD_WIDTH; x++) {
+        /* pixel to texel for x shift by 8 cuz both ref.x and a are fixed point
+         * floats shifted by 8 */
         Vec2<int32_t> texel = pixel_to_texel<int32_t>(
           rot_scale.internal, x, rot_scale.a, rot_scale.c);
 
-        // area overflow
+        /* area overflow */
         if (texel.x < 0 || texel.x >= screen_size || texel.y < 0 ||
             texel.y >= screen_size) {
             if (bg_control[LAYER].value.bg_2_3_wraparound) {
@@ -223,17 +221,23 @@ Display::render_rot_scale_layer_line() {
             }
         }
 
-        Vec2<int32_t> tile = { texel.x / 8,
-                               texel.y / 8 }; // each tile is 8x8 pixels
-        auto n_tiles       = screen_size / 8;
+        Vec2<uint32_t> tile_pos = {
+            static_cast<uint32_t>(texel.x) / TILE_SIZE,
+            static_cast<uint32_t>(texel.y) / TILE_SIZE,
+        };
 
-        auto map_address = map_base + (tile.x + tile.y * n_tiles);
+        auto n_tiles = screen_size / TILE_SIZE;
 
-        auto tile_address =
-          tile_base + (uint32_t)vram.read_byte(map_address) * 0x40; // bpp8 only
+        auto map_address = map_base + (tile_pos.x + tile_pos.y * n_tiles);
 
-        uint8_t color_index = read_color_index(
-          tile_address, texel.x % 8, texel.y % 8, ColorDepth::BPP8);
+        auto tile_address = tile_base + (uint32_t)vram.read_byte(map_address)
+                                          /* only supports 8 bit depth */
+                                          * TILE_SIZE_8BIT_DEPTH;
+
+        uint8_t color_index = read_color_index(tile_address,
+                                               texel.x % TILE_SIZE,
+                                               texel.y % TILE_SIZE,
+                                               ColorDepth::BPP8);
 
         scanline_buffers[LAYER][x] = fetch_color(color_index, 0, 0);
     }
