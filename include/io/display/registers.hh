@@ -18,7 +18,7 @@ static constexpr uint N_MODES = 6;
 static constexpr uint N_BACKGROUNDS = 4;
 
 template<typename T, typename = std::enable_if_t<std::is_arithmetic_v<T>>>
-struct Point {
+struct Vec2 {
     T x;
     T y;
 };
@@ -233,8 +233,8 @@ struct RotationScaling {
 
     // following points have 28 bit signed "fixed point" floats as coords
     // shifted by 8
-    Point<int32_t> ref;
-    Point<int32_t> internal;
+    Vec2<int32_t> ref;
+    Vec2<int32_t> internal;
 };
 }
 }

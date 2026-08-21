@@ -60,13 +60,13 @@ class Display {
     DisplayStatus lcd_status;
     u16 vertical_counter;
     BackgroundControl bg_control[4];
-    Point<u16> bg_offset[4];
+    Vec2<u16> bg_offset[4];
     RotationScaling bg2_rot_scale;
     RotationScaling bg3_rot_scale;
-    Point<u8> win0_top_left;
-    Point<u8> win0_bot_right;
-    Point<u8> win1_top_left;
-    Point<u8> win1_bot_right;
+    Vec2<u8> win0_top_left;
+    Vec2<u8> win0_bot_right;
+    Vec2<u8> win1_top_left;
+    Vec2<u8> win1_bot_right;
     WindowControl win0;
     WindowControl win1;
     WindowControl win_out;

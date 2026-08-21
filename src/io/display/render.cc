@@ -7,42 +7,48 @@
 namespace matar {
 namespace display {
 
+template<std::integral Int>
+static inline Vec2<Int>
+pixel_to_texel(Vec2<Int> ref, Int x, Int a, Int c) {
+    return { (ref.x + x * a) >> 8, (ref.y + x * c) >> 8 };
+}
+
 template<int MODE, typename>
 void
 Display::render_bitmap_mode_line() {
-    static constexpr int VIEWPORT_WIDTH = MODE == 5 ? 160 : LCD_WIDTH;
+    static constexpr auto VIEWPORT_WIDTH = MODE == 5 ? 160 : LCD_WIDTH;
+    static constexpr auto FRAME_1_OFFSET = 0xA000;
 
-    for (int x = 0; x < LCD_WIDTH; x++) {
-        // pixel to texel for x
-        // shift by 8 cuz both ref.x and a are fixed point floats shifted by 8
-        // terms with b and d are ignored cuz they are already added at vblank
-        // to internal x and y
-        int32_t x_ = (bg2_rot_scale.internal.x + x * bg2_rot_scale.a) >> 8;
-        int32_t y_ = (bg2_rot_scale.internal.y + x * bg2_rot_scale.c) >> 8;
+    for (auto x = 0; x < LCD_WIDTH; x++) {
+        /* pixel to texel for x shift by 8 cuz both ref.x and a are fixed point
+         * floats shifted by 8 terms with b and d are ignored cuz they are
+         * already added at vblank to internal x and y */
+        Vec2<int32_t> texel = pixel_to_texel<int32_t>(
+          bg2_rot_scale.internal, x, bg2_rot_scale.a, bg2_rot_scale.c);
 
-        std::size_t idx = y_ * VIEWPORT_WIDTH + x_;
+        auto idx = texel.y * VIEWPORT_WIDTH + texel.x;
 
-        // mode 3 and 5 takes 2 bytes per pixel
-        if constexpr (MODE != 4)
+        /* mode 3 and 5 takes 2 bytes per pixel */
+        if constexpr (MODE != 4) {
             idx *= 2;
-
-        // offset
-        if constexpr (MODE != 3) {
-            std::size_t offset =
-              lcd_control.value.frame_select_1 ? 0xA000 : 0x0000;
-            idx += offset;
         }
-        // read two bytes
-        if constexpr (MODE == 4) {
 
-            // Color color            = fetch_color(vram.read_byte(idx), 0, 0);
+        /* offset */
+        if constexpr (MODE != 3) {
+            if (lcd_control.value.frame_select_1) {
+                idx += FRAME_1_OFFSET;
+            }
+        }
+        /* read two bytes */
+        if constexpr (MODE == 4) {
             scanline_buffers[2][x] = fetch_color(vram.read_byte(idx), 0, 0);
-        } else
+        } else {
             scanline_buffers[2][x] = vram.read_halfword(idx);
+        }
     }
 }
 
-// explicit instantitation
+/* explicit instantitation */
 template void
 Display::render_bitmap_mode_line<3>();
 template void
@@ -111,8 +117,8 @@ Display::render_text_layer_line() {
     // every screen has 256x256 pixels, 32x32 tiles i.e, every tile has 64
     // pixels i.e, every row has 32 tiles and every tile row has 8 pixels
 
-    Point<int32_t> tile = { (vp_coords.x % 256) / 8, (vp_coords.y % 256) / 8 };
-    Point<int32_t> tile_pixel = { vp_coords.x % 8, vp_coords.y % 8 };
+    Vec2<uint32_t> tile = { (vp_coords.x % 256) / 8, (vp_coords.y % 256) / 8 };
+    Vec2<uint32_t> tile_pixel = { vp_coords.x % 8, vp_coords.y % 8 };
 
     for (int si = screen_index, x = 0; si <= screen_size_mode % 2; si++) {
         auto tx = tile.x;
@@ -185,30 +191,32 @@ Display::render_rot_scale_layer_line() {
         }
         // pixel to texel for x
         // shift by 8 cuz both ref.x and a are fixed point floats shifted by 8
-        int32_t x_ = (rot_scale.internal.x + x * rot_scale.a) >> 8;
-        int32_t y_ = (rot_scale.internal.y + x * rot_scale.c) >> 8;
+        Vec2<int32_t> texel = pixel_to_texel<int32_t>(
+          rot_scale.internal, x, rot_scale.a, rot_scale.c);
 
         // area overflow
-        if (x_ < 0 || x_ >= screen_size || y_ < 0 || y_ >= screen_size) {
+        if (texel.x < 0 || texel.x >= screen_size || texel.y < 0 ||
+            texel.y >= screen_size) {
             if (bg_control[LAYER].value.bg_2_3_wraparound) {
-                x_ &= screen_size - 1;
-                y_ &= screen_size - 1;
+                texel.x &= screen_size - 1;
+                texel.y &= screen_size - 1;
             } else {
                 scanline_buffers[LAYER][x] = fetch_color(0, 0, 0);
                 continue;
             }
         }
 
-        Point<int32_t> tile = { x_ / 8, y_ / 8 }; // each tile is 8x8 pixels
-        auto n_tiles        = screen_size / 8;
+        Vec2<int32_t> tile = { texel.x / 8,
+                               texel.y / 8 }; // each tile is 8x8 pixels
+        auto n_tiles       = screen_size / 8;
 
         auto map_address = map_base + (tile.x + tile.y * n_tiles);
 
         auto tile_address =
           tile_base + (uint32_t)vram.read_byte(map_address) * 0x40; // bpp8 only
 
-        uint8_t color_index =
-          read_color_index(tile_address, x_ % 8, y_ % 8, ColorDepth::BPP8);
+        uint8_t color_index = read_color_index(
+          tile_address, texel.x % 8, texel.y % 8, ColorDepth::BPP8);
 
         scanline_buffers[LAYER][x] = fetch_color(color_index, 0, 0);
     }
@@ -252,8 +260,8 @@ Display::render_objects_line() {
         o.a1 = std::bit_cast<decltype(o.a1)>(oam.read_halfword(address + 2));
         o.a2 = std::bit_cast<decltype(o.a2)>(oam.read_halfword(address + 4));
 
-        Point<int32_t> coords = { o.a1.x, o.a0.y };
-        ObjectMode mode       = static_cast<ObjectMode>(o.a0.mode);
+        Vec2<int32_t> coords = { o.a1.x, o.a0.y };
+        ObjectMode mode      = static_cast<ObjectMode>(o.a0.mode);
         if (coords.x >= LCD_WIDTH)
             coords.x -= 512;
         if (coords.y >= LCD_HEIGHT)
@@ -311,7 +319,7 @@ Display::render_objects_line() {
                 continue;
             }
 
-            Point<int32_t> transformed;
+            Vec2<int32_t> transformed;
 
             // im gonna trust the -O3 and pray this gets optimised
             if (get_bit(o.a0.rot_scale, 0)) {
