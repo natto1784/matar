@@ -249,166 +249,194 @@ Display::render_rot_scale_layer_line<2>();
 template void
 Display::render_rot_scale_layer_line<3>();
 
-void
-Display::render_objects_line() {
-    struct OamAttributes {
-        struct {
-            int8_t y : 8;
-            uint8_t rot_scale : 2;
-            uint8_t mode : 2;
-            bool mosaic : 1;
-            bool colors256 : 1;
-            uint8_t shape : 2;
-        } a0;
+static constexpr auto OBJ_TILE_SIZE  = 32;
+static constexpr auto OAM_ATTRS_SIZE = 6;
+static constexpr auto OAM_GAP_SIZE   = 2;
+static constexpr auto OAM_ENTRY_SIZE = OAM_ATTRS_SIZE + OAM_GAP_SIZE;
 
-        struct {
-            int16_t x : 9;
-            uint8_t trans_params : 5;
-            uint8_t size : 2;
-        } a1;
+Display::OamAttributes
+Display::read_oam_attributes(int idx) {
+    size_t attr_address = OAM_ENTRY_SIZE * idx;
 
-        struct {
-            uint16_t number : 10;
-            uint8_t priority : 2;
-            uint8_t palette : 4;
-        } a2;
+    OamAttributes o;
+
+    o.attr0 = std::bit_cast<decltype(o.attr0)>(oam.read_halfword(attr_address));
+    o.attr1 =
+      std::bit_cast<decltype(o.attr1)>(oam.read_halfword(attr_address + 2));
+    o.attr2 =
+      std::bit_cast<decltype(o.attr2)>(oam.read_halfword(attr_address + 4));
+
+    return o;
+}
+
+inline Vec2<int32_t>
+Display::object_size(const OamAttributes& o) {
+    static constexpr std::array<std::array<Vec2<int32_t>, 4>, 4> sizes{
+        { /* Square*/
+          { { { 8, 8 }, { 16, 16 }, { 32, 32 }, { 64, 64 } } },
+          /* Horizontal */
+          { { { 16, 8 }, { 32, 8 }, { 32, 16 }, { 64, 32 } } },
+          /* Vertical */
+          { { { 8, 16 }, { 8, 32 }, { 16, 32 }, { 32, 64 } } },
+          /* Prohibited ??? */
+          { { { 8, 8 }, { 8, 8 }, { 8, 8 }, { 8, 8 } } } }
     };
 
-    for (int i = 0; i < 128; i++) {
-        size_t address = 8 * i;
-        OamAttributes o;
-        o.a0 = std::bit_cast<decltype(o.a0)>(oam.read_halfword(address));
-        o.a1 = std::bit_cast<decltype(o.a1)>(oam.read_halfword(address + 2));
-        o.a2 = std::bit_cast<decltype(o.a2)>(oam.read_halfword(address + 4));
+    return sizes[o.attr0.shape][o.attr1.size];
+}
 
-        Vec2<int32_t> coords = { o.a1.x, o.a0.y };
-        ObjectMode mode      = static_cast<ObjectMode>(o.a0.mode);
-        if (coords.x >= LCD_WIDTH)
-            coords.x -= 512;
-        if (coords.y >= LCD_HEIGHT)
-            coords.y -= 256;
+inline Display::RotationParams
+Display::read_rotation_params(const OamAttributes& o) {
+    static constexpr auto N_PARAMS = 4;
+    RotationParams params;
 
-        uint32_t tile_base = 0x10000 + o.a2.number * 0x20;
+    const size_t address =
+      OAM_ATTRS_SIZE + o.attr1.trans_params * (N_PARAMS * OAM_ENTRY_SIZE);
 
-        static constexpr std::array<std::array<std::pair<int32_t, int32_t>, 4>,
-                                    4>
-          OBJ_SIZES{ { // Square
-                       { { { 8, 8 }, { 16, 16 }, { 32, 32 }, { 64, 64 } } },
-                       // Horizontal
-                       { { { 16, 8 }, { 32, 8 }, { 32, 16 }, { 64, 32 } } },
-                       // Vertical
-                       { { { 8, 16 }, { 8, 32 }, { 16, 32 }, { 32, 64 } } },
-                       // Prohibited ???
-                       { { { 8, 8 }, { 8, 8 }, { 8, 8 }, { 8, 8 } } } } };
+    params.a =
+      static_cast<int16_t>(oam.read_halfword(address + 0 * OAM_ENTRY_SIZE));
+    params.b =
+      static_cast<int16_t>(oam.read_halfword(address + 1 * OAM_ENTRY_SIZE));
+    params.c =
+      static_cast<int16_t>(oam.read_halfword(address + 2 * OAM_ENTRY_SIZE));
+    params.d =
+      static_cast<int16_t>(oam.read_halfword(address + 3 * OAM_ENTRY_SIZE));
 
-        auto [size_x, size_y] = OBJ_SIZES[o.a0.shape][o.a1.size];
+    return params;
+}
 
-        // this is the display size, which is doubled if double bit is set
-        auto dsize_x = size_x;
-        auto dsize_y = size_y;
+void
+Display::render_one_object(int idx) {
+    OamAttributes o    = read_oam_attributes(idx);
+    uint32_t tile_base = OBJ_START_TEXT_MODE + o.attr2.number * OBJ_TILE_SIZE;
+    ObjectMode mode    = static_cast<ObjectMode>(o.attr0.mode);
+    Vec2<int32_t> size = object_size(o);
+    Vec2<int32_t> display_size = size;
+    Vec2<int32_t> obj_pos      = { o.attr1.x, o.attr0.y };
+    RotationParams rot_params;
 
-        // double sized
-        if (o.a0.rot_scale == 0b11)
-            dsize_x *= 2, dsize_y *= 2;
+    if (obj_pos.x >= LCD_WIDTH)
+        obj_pos.x -= 512;
+    if (obj_pos.y >= LCD_HEIGHT)
+        obj_pos.y -= 256;
 
-        const auto y = vertical_counter;
+    const auto y = vertical_counter;
 
-        // OBJ disable
-        if (o.a0.rot_scale == 0b10)
-            continue;
+    if (mode == ObjectMode::Prohibited) {
+        return;
+    }
 
-        if (mode == ObjectMode::Prohibited)
-            continue;
+    if (o.attr0.rot_scale_flag) {
+        rot_params = read_rotation_params(o);
 
-        // continue if object does not cover current scanline
-        if (y < coords.y || y >= coords.y + dsize_y)
-            continue;
-
-        // ignore for bg mode 3-5 for numbers 0-511
-        if (lcd_control.value.mode > 2 && o.a2.number < 512)
-            continue;
-
-        // coords.x max value is 255
-
-        for (int x = coords.x; x < coords.x + dsize_x && x < LCD_WIDTH; x++) {
-
-            if (x < 0)
-                continue;
-
-            if (object_buffer[x][y].priority <= o.a2.priority &&
-                o.a0.mode != ObjectMode::Window) {
-                continue;
-            }
-
-            Vec2<int32_t> transformed;
-
-            // im gonna trust the -O3 and pray this gets optimised
-            if (get_bit(o.a0.rot_scale, 0)) {
-                // if rotation/scaling is on
-                size_t param_offset = o.a1.trans_params * 0x20 + 6;
-                int32_t a =
-                  static_cast<int16_t>(oam.read_halfword(param_offset));
-                int32_t b =
-                  static_cast<int16_t>(oam.read_halfword(param_offset + 8));
-                int32_t c =
-                  static_cast<int16_t>(oam.read_halfword(param_offset + 16));
-                int32_t d =
-                  static_cast<int16_t>(oam.read_halfword(param_offset + 24));
-
-                int32_t ref_x = x - coords.x - dsize_x / 2;
-                int32_t ref_y = y - coords.y - dsize_y / 2;
-
-                transformed = { ((a * ref_x + b * ref_y) >> 8) + size_x / 2,
-                                ((c * ref_x + d * ref_y) >> 8) + size_y / 2 };
-                if (transformed.x < 0 || transformed.x >= size_x ||
-                    transformed.y < 0 || transformed.y >= size_y) {
-                    continue;
-                }
-            } else {
-                transformed = { x - coords.x, y - coords.y };
-                // horizontal flip
-                if (get_bit(o.a1.trans_params, 3)) {
-                    transformed.x = size_x - 1 - transformed.x;
-                }
-                // vertical flip
-                if (get_bit(o.a1.trans_params, 4)) {
-                    transformed.y = size_y - 1 - transformed.y;
-                }
-            }
-
-            uint8_t tile_size = o.a0.colors256 ? 0x40 : 0x20;
-
-            size_t tile_address =
-              tile_base +
-              tile_size *
-                (transformed.x / 8 + (transformed.y / 8) *
-                                       // how many tile addresses are in one row
-                                       (lcd_control.value.obj_vram_1d_mapping
-                                          ? size_x / 8
-                                          : (o.a0.colors256 ? 16 : 32)));
-
-            uint8_t color_index =
-              read_color_index(tile_address,
-                               transformed.x % 8,
-                               transformed.y % 8,
-                               static_cast<ColorDepth>(o.a0.colors256));
-
-            Color color =
-              fetch_color(color_index, (o.a0.colors256 ? 0 : o.a2.palette), 1);
-
-            if (color.raw() == TRANSPARENT_RGB555) {
-                continue;
-            }
-
-            if (mode == ObjectMode::Window) {
-                object_buffer[x][y].is_window = true;
-                continue;
-            }
-
-            object_buffer[x][y].color    = color;
-            object_buffer[x][y].priority = o.a2.priority;
-            object_buffer[x][y].is_alpha = mode == ObjectMode::Alpha;
+        if (o.attr0.double_size_or_obj_disable) {
+            /* double size */
+            display_size.x *= 2;
+            display_size.y *= 2;
         }
+    } else {
+        if (o.attr0.double_size_or_obj_disable) {
+            /* OBJ disable */
+            return;
+        }
+    }
+
+    /* continue if object does not cover current scanline */
+    if (y < obj_pos.y || y >= obj_pos.y + display_size.y) {
+        return;
+    }
+
+    /* ignore for bg mode 3-5 for numbers 0-511 */
+    if (lcd_control.value.mode > 2 && o.attr2.number < 512) {
+        return;
+    }
+
+    for (int x = obj_pos.x; x < obj_pos.x + display_size.x && x < LCD_WIDTH;
+         x++) {
+        if (x < 0) {
+            continue;
+        }
+
+        if (object_buffer[x][y].priority <= o.attr2.priority &&
+            o.attr0.mode != ObjectMode::Window) {
+            continue;
+        }
+
+        Vec2<int32_t> tile_pos;
+
+        if (o.attr0.rot_scale_flag) {
+            /* if rotation/scaling is on */
+            Vec2<int32_t> ref{
+                x - obj_pos.x - display_size.x / 2,
+                y - obj_pos.y - display_size.y / 2,
+            };
+
+            tile_pos = {
+                ((rot_params.a * ref.x + rot_params.b * ref.y) >> 8) +
+                  size.x / 2,
+                ((rot_params.c * ref.x + rot_params.d * ref.y) >> 8) +
+                  size.y / 2,
+            };
+            if (tile_pos.x < 0 || tile_pos.x >= size.x || tile_pos.y < 0 ||
+                tile_pos.y >= size.y) {
+                continue;
+            }
+        } else {
+            tile_pos = { x - obj_pos.x, y - obj_pos.y };
+            /* horizontal flip */
+            if (get_bit(o.attr1.trans_params, 3)) {
+                tile_pos.x = size.x - 1 - tile_pos.x;
+            }
+            /* vertical flip */
+            if (get_bit(o.attr1.trans_params, 4)) {
+                tile_pos.y = size.y - 1 - tile_pos.y;
+            }
+        }
+
+        static constexpr auto TILE_SIZE     = 8;
+        static constexpr auto VRAM_ROW_SIZE = 1024;
+
+        uint8_t tile_size =
+          o.attr0.colors256 ? TILE_SIZE_8BIT_DEPTH : TILE_SIZE_4BIT_DEPTH;
+
+        size_t tiles_in_one_row = lcd_control.value.obj_vram_1d_mapping
+                                    ? size.x / 8
+                                    : VRAM_ROW_SIZE / tile_size;
+
+        size_t tile_address =
+          tile_base + tile_size * (tile_pos.x / TILE_SIZE +
+                                   (tile_pos.y / TILE_SIZE) * tiles_in_one_row);
+
+        uint8_t color_index =
+          read_color_index(tile_address,
+                           tile_pos.x % 8,
+                           tile_pos.y % 8,
+                           static_cast<ColorDepth>(o.attr0.colors256));
+
+        Color color = fetch_color(
+          color_index, (o.attr0.colors256 ? 0 : o.attr2.palette), 1);
+
+        if (color.raw() == TRANSPARENT_RGB555) {
+            continue;
+        }
+
+        if (mode == ObjectMode::Window) {
+            object_buffer[x][y].is_window = true;
+            continue;
+        }
+
+        object_buffer[x][y].color    = color;
+        object_buffer[x][y].priority = o.attr2.priority;
+        object_buffer[x][y].is_alpha = mode == ObjectMode::Alpha;
+    }
+}
+
+void
+Display::render_objects_line() {
+    static constexpr auto N_OBJECTS = 128;
+
+    for (int i = 0; i < N_OBJECTS; i++) {
+        render_one_object(i);
     }
 }
 }

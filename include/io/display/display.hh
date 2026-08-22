@@ -100,6 +100,41 @@ class Display {
     template<int LAYER, typename = std::enable_if_t<LAYER == 2 || LAYER == 3>>
     void render_rot_scale_layer_line();
 
+    struct OamAttributes {
+        struct {
+            int8_t y : 8;
+            bool rot_scale_flag : 1;
+            bool double_size_or_obj_disable : 1;
+            uint8_t mode : 2;
+            bool mosaic : 1;
+            bool colors256 : 1;
+            uint8_t shape : 2;
+        } attr0;
+
+        struct {
+            int16_t x : 9;
+            uint8_t trans_params : 5;
+            uint8_t size : 2;
+        } attr1;
+
+        struct {
+            uint16_t number : 10;
+            uint8_t priority : 2;
+            uint8_t palette : 4;
+        } attr2;
+    };
+
+    struct RotationParams {
+        int32_t a;
+        int32_t b;
+        int32_t c;
+        int32_t d;
+    };
+
+    OamAttributes read_oam_attributes(int idx);
+    Vec2<int32_t> object_size(const OamAttributes& o);
+    RotationParams read_rotation_params(const OamAttributes& o);
+    void render_one_object(int idx);
     void render_objects_line();
 
     void render_line();
